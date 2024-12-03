@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "main.h": "c",
+        "stdint.h": "c",
+        "string.h": "c",
+        "mainmcu.h": "c",
+        "hwtimers.h": "c"
+    },
+    "makefile.makefilePath": "Debug\\makefile"
+}
