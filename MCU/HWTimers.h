@@ -32,6 +32,10 @@ uint16_t printHWTimer(HWTimer* hwTimer, char* msg, const uint16_t maxMsgLen);
 
 uint8_t snprintf64Hex(char* outMsg, uint8_t msgSize, uint64_t n);
 
+void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel, uint32_t channelID);
+void captureInputISR(TIM_HandleTypeDef* htim);
+void restartTimerISR(TIM_HandleTypeDef* htim);
+
 // Defined in MainMCU.h
 extern HWTimers hwTimers;
 

@@ -27,7 +27,7 @@ class TimerChannel:
     
 if __name__ == '__main__':
     killer = LoopKiller()
-    serial = serial.Serial("COM5", baudrate=115200)
+    serial = serial.Serial("COM5", baudrate=921600)
     inputBuffer: bytearray = bytearray()
 
     channels: dict[str, TimerChannel] = {}
