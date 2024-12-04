@@ -5,13 +5,13 @@
 #include <stdio.h>
 #include "stm32g4xx_hal.h"
 #include "stm32g4xx_hal_tim.h"
+#include "CircularBuffer64.h"
 
 #define CHANNEL_COUNT 4
-#define COUNTS_PER_CHANNEL 32
 
 typedef struct HWTimerChannel {
-    uint64_t  triggers[COUNTS_PER_CHANNEL];
-    uint8_t   triggerCount;
+    // uint64_t  triggers[COUNTS_PER_CHANNEL];
+    CircularBuffer64  data;
 } HWTimerChannel;
 
 typedef struct HWTimer {

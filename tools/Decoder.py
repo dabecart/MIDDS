@@ -47,47 +47,55 @@ if __name__ == '__main__':
         if serial.in_waiting > 0:
             inputBuffer += serial.read(serial.in_waiting)
             
-            if b'\n' in inputBuffer:
-                lowIndex: int = inputBuffer.find(b'\n')
-                message: bytearray = inputBuffer[:lowIndex+1]
-                inputBuffer = inputBuffer[lowIndex+1:]
+            if b'\n' not in inputBuffer:
+                continue
 
-                if len(message) == 0: 
-                   continue
-                if message[0] != ord(b'C'):
-                   continue
-                
-                # Message format: C{counterID}.{channelID}:{data}
-                #                  \        HEADER       / \DATA/
-                bulk = message[1:].split(b':')
-                header = bulk[0].split(b'.')
-                data = bulk[1]
+            lowIndex: int = inputBuffer.find(b'\n')
+            message: bytearray = inputBuffer[:lowIndex+1]
+            inputBuffer = inputBuffer[lowIndex+1:]
 
-                if len(header) != 2:
-                   continue
+            if len(message) == 0: 
+                print("Null length")
+                continue
 
-                try:
-                    counterID = int(header[0])
-                    channelID = int(header[1])
-                except:
-                   continue
-                
-                if 0 > channelID >= numberOfChannels:
-                   continue
+            if message[0] != ord(b'C'):
+                print("Missing C")
+                continue
 
-                timChKey: str = f'T{counterID}.{channelID}'
-                timCh: TimerChannel|None = channels.get(timChKey, None)
-                if timCh is None:
-                    channels[timChKey] = TimerChannel(timChKey)
-                    timCh = channels[timChKey]
-                
-                # Start from 1 forward, as the {data} format is x{hex number}x{hex number}
-                numberChunks = data[1:].split(b'x')
+            # Message format: C{counterID}.{channelID}:{data}
+            #                  \        HEADER       / \DATA/
+            bulk = message[1:].split(b':')
+            header = bulk[0].split(b'.')
+            data = bulk[1]
 
-                timCh.totalCounts += len(numberChunks)
-                timCh.lastTx = perf_counter_ns()
-                for hexNum in numberChunks:
-                    timCh.file.write(f'{int(hexNum, 16)}\n')
+            if len(header) != 2:
+                print("Wrong header length")
+                continue
+
+            try:
+                counterID = int(header[0])
+                channelID = int(header[1])
+            except:
+                print("Cannot parse header")
+                continue
+            
+            if 0 > channelID >= numberOfChannels:
+                print("Wrong channel ID")
+                continue
+
+            timChKey: str = f'T{counterID}.{channelID}'
+            timCh: TimerChannel|None = channels.get(timChKey, None)
+            if timCh is None:
+                channels[timChKey] = TimerChannel(timChKey)
+                timCh = channels[timChKey]
+            
+            # Start from 1 forward, as the {data} format is x{hex number}x{hex number}
+            numberChunks = data[1:].split(b'x')
+
+            timCh.totalCounts += len(numberChunks)
+            timCh.lastTx = perf_counter_ns()
+            for hexNum in numberChunks:
+                timCh.file.write(f'{int(hexNum, 16)}\n')
 
     for ch in channels.values():
         ch.file.close()

@@ -26,6 +26,10 @@ try:
 except:
     pass
 
+# dataT1 = genfromtxt('InputT1.0.csv', delimiter='\n')*deltaMicrosecond
+# # X-Axis in seconds.
+# dataT2 = genfromtxt('InputT1.1.csv', delimiter='\n')*deltaMicrosecond
+# # X-Axis in seconds.
 # ax.set(xlim=(min(dataT1), max(dataT1)))
 # deltaT2T1 = dataT2 - dataT1
 # ax.scatter(dataT1, deltaT2T1, c='#ff0000')

@@ -8,6 +8,10 @@ void initHWTimers(TIM_HandleTypeDef* htim1, HWTimers* htimers) {
 
     htimers->htim1.htim = htim1;
     htimers->htim1.counterID = 1;
+    init_cb64(&htimers->htim1.ch[0].data, CIRCULAR_BUFFER_64_MAX_SIZE);
+    init_cb64(&htimers->htim1.ch[1].data, CIRCULAR_BUFFER_64_MAX_SIZE);
+    init_cb64(&htimers->htim1.ch[2].data, CIRCULAR_BUFFER_64_MAX_SIZE);
+    init_cb64(&htimers->htim1.ch[3].data, CIRCULAR_BUFFER_64_MAX_SIZE);
 }
 
 void startHWTimers(HWTimers* htimers) {
@@ -23,43 +27,42 @@ void startHWTimers(HWTimers* htimers) {
 }
 
 uint8_t readyToPrintHWTimer(HWTimer* hwTimer) {
-    return (hwTimer->ch[0].triggerCount >= COUNTS_PER_CHANNEL/2) ||
-           (hwTimer->ch[1].triggerCount >= COUNTS_PER_CHANNEL/2) || 
-           (hwTimer->ch[2].triggerCount >= COUNTS_PER_CHANNEL/2) || 
-           (hwTimer->ch[3].triggerCount >= COUNTS_PER_CHANNEL/2); 
+    return (hwTimer->ch[0].data.len  + hwTimer->ch[1].data.len + hwTimer->ch[2].data.len + hwTimer->ch[3].data.len) > 10;
 }
 
 uint16_t printHWTimer(HWTimer* hwTimer, char* outMsg, const uint16_t maxMsgLen) {
     uint16_t msgSize = 0;
     HWTimerChannel* hwCh = NULL;
+    uint64_t readVal;
+    uint32_t currentMessages;
 
     for(uint8_t channelIndex = 0; channelIndex < CHANNEL_COUNT; channelIndex++) {
         hwCh = hwTimer->ch + channelIndex;
 
-        if(hwCh->triggerCount == 0) continue;
+        if(hwCh->data.len == 0) continue;
 
         msgSize += snprintf(outMsg + msgSize, maxMsgLen - msgSize, 
                             "C%d.%d:", hwTimer->counterID, channelIndex);
 
-        for(uint8_t countIndex = 0; countIndex < hwCh->triggerCount; countIndex++) {
+        currentMessages = hwCh->data.len;   // Make it constant at this point.
+        for(uint8_t countIndex = 0; countIndex < currentMessages; countIndex++) {
+            pop_cb64(&hwCh->data, &readVal);
             msgSize += snprintf64Hex(
                             outMsg + msgSize, 
                             maxMsgLen - msgSize,
-                            hwCh->triggers[countIndex]
+                            readVal
                         );
         }
         msgSize += snprintf(outMsg + msgSize, maxMsgLen-msgSize, "\n");
-    
-        // Allow to receive interrupts again.
-        hwCh->triggerCount = 0;
     }
 
     return msgSize;
 }
 
 // TIMER INTERRUPTS
-inline void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel, uint32_t channelID, uint8_t addCoarseIncrement) {
-    if(channel->triggerCount >= COUNTS_PER_CHANNEL) {
+inline void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel, 
+                          uint32_t channelID, uint8_t addCoarseIncrement) {
+    if(channel->data.len >= channel->data.size) {
         return;
     }
 
@@ -69,9 +72,7 @@ inline void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel, uint
     // value is smaller than the current timer, then the captured value belongs to the new coarse
     // counter value (which still hasn't been updated).
     if(addCoarseIncrement && (capturedVal < __HAL_TIM_GET_COUNTER(htim))) capturedVal += 0x10000ULL;
-
-    channel->triggers[channel->triggerCount] = coarse + capturedVal;
-    channel->triggerCount++;
+    push_cb64(&channel->data, capturedVal + coarse);
 }
 
 void captureInputISR(TIM_HandleTypeDef* htim) {
@@ -81,41 +82,30 @@ void captureInputISR(TIM_HandleTypeDef* htim) {
     }
     if(selectedTimer == NULL) return;
 
-    uint32_t itEnabled = htim->Instance->DIER;
     uint32_t itFlags   = htim->Instance->SR;
+    uint32_t itEnabled = htim->Instance->DIER;
     if((itFlags & (TIM_FLAG_CC1)) == (TIM_FLAG_CC1) && 
       ((itEnabled & (TIM_IT_CC1)) == (TIM_IT_CC1))) {
         __HAL_TIM_CLEAR_FLAG(htim, TIM_FLAG_CC1);
-        if ((htim->Instance->CCMR1 & TIM_CCMR1_CC1S) != 0x00U){
-            saveTimestamp(htim, selectedTimer->ch, TIM_CHANNEL_1, 0);
-        }
+        saveTimestamp(htim, selectedTimer->ch, TIM_CHANNEL_1, 0);
     }
 
-    itFlags   = htim->Instance->SR;
     if((itFlags & (TIM_FLAG_CC2)) == (TIM_FLAG_CC2) && 
       ((itEnabled & (TIM_IT_CC2)) == (TIM_IT_CC2))) {
         __HAL_TIM_CLEAR_FLAG(htim, TIM_FLAG_CC2);
-        if ((htim->Instance->CCMR1 & TIM_CCMR1_CC2S) != 0x00U){
-            saveTimestamp(htim, selectedTimer->ch + 1, TIM_CHANNEL_2, 0);
-        }
+        saveTimestamp(htim, selectedTimer->ch + 1, TIM_CHANNEL_2, 0);
     }
 
-    itFlags   = htim->Instance->SR;
     if((itFlags & (TIM_FLAG_CC3)) == (TIM_FLAG_CC3) && 
       ((itEnabled & (TIM_IT_CC3)) == (TIM_IT_CC3))) {
         __HAL_TIM_CLEAR_FLAG(htim, TIM_FLAG_CC3);
-        if ((htim->Instance->CCMR2 & TIM_CCMR2_CC3S) != 0x00U){
-            saveTimestamp(htim, selectedTimer->ch + 2, TIM_CHANNEL_3, 0);
-        }
+        saveTimestamp(htim, selectedTimer->ch + 2, TIM_CHANNEL_3, 0);
     }
 
-    itFlags   = htim->Instance->SR;
     if((itFlags & (TIM_FLAG_CC4)) == (TIM_FLAG_CC4) && 
       ((itEnabled & (TIM_IT_CC4)) == (TIM_IT_CC4))) {
         __HAL_TIM_CLEAR_FLAG(htim, TIM_FLAG_CC4);
-        if ((htim->Instance->CCMR2 & TIM_CCMR2_CC4S) != 0x00U){
-            saveTimestamp(htim, selectedTimer->ch + 3, TIM_CHANNEL_4, 0);
-        }
+        saveTimestamp(htim, selectedTimer->ch + 3, TIM_CHANNEL_4, 0);
     }
 }
 
@@ -129,38 +119,30 @@ void restartTimerISR(TIM_HandleTypeDef* htim) {
     // Before adding the coarse, check if there are any pending Capture Inputs on the timer 
     // channels. If there are, save them but take into account that an clock reset has happened and
     // the captured value may pertain to the new coarse, which still hasn't been incremented.
-    uint32_t itEnabled = htim->Instance->DIER;
     uint32_t itFlags   = htim->Instance->SR;
+    uint32_t itEnabled = htim->Instance->DIER;
     if((itFlags & (TIM_FLAG_CC1)) == (TIM_FLAG_CC1) && 
-    ((itEnabled & (TIM_IT_CC1)) == (TIM_IT_CC1))) {
+       ((itEnabled & (TIM_IT_CC1)) == (TIM_IT_CC1))) {
         __HAL_TIM_CLEAR_FLAG(htim, TIM_FLAG_CC1);
-        if ((htim->Instance->CCMR1 & TIM_CCMR1_CC1S) != 0x00U){
-            saveTimestamp(htim, selectedTimer->ch, TIM_CHANNEL_1, 1);
-        }
+        saveTimestamp(htim, selectedTimer->ch, TIM_CHANNEL_1, 1);
     }
 
     if((itFlags & (TIM_FLAG_CC2)) == (TIM_FLAG_CC2) && 
-    ((itEnabled & (TIM_IT_CC2)) == (TIM_IT_CC2))) {
+      ((itEnabled & (TIM_IT_CC2)) == (TIM_IT_CC2))) {
         __HAL_TIM_CLEAR_FLAG(htim, TIM_FLAG_CC2);
-        if ((htim->Instance->CCMR1 & TIM_CCMR1_CC2S) != 0x00U){
-            saveTimestamp(htim, selectedTimer->ch + 1, TIM_CHANNEL_2, 1);
-        }
+        saveTimestamp(htim, selectedTimer->ch + 1, TIM_CHANNEL_2, 1);
     }
 
     if((itFlags & (TIM_FLAG_CC3)) == (TIM_FLAG_CC3) && 
-    ((itEnabled & (TIM_IT_CC3)) == (TIM_IT_CC3))) {
+      ((itEnabled & (TIM_IT_CC3)) == (TIM_IT_CC3))) {
         __HAL_TIM_CLEAR_FLAG(htim, TIM_FLAG_CC3);
-        if ((htim->Instance->CCMR2 & TIM_CCMR2_CC3S) != 0x00U){
-            saveTimestamp(htim, selectedTimer->ch + 2, TIM_CHANNEL_3, 1);
-        }
+        saveTimestamp(htim, selectedTimer->ch + 2, TIM_CHANNEL_3, 1);
     }
 
     if((itFlags & (TIM_FLAG_CC4)) == (TIM_FLAG_CC4) && 
-    ((itEnabled & (TIM_IT_CC4)) == (TIM_IT_CC4))) {
+      ((itEnabled & (TIM_IT_CC4)) == (TIM_IT_CC4))) {
         __HAL_TIM_CLEAR_FLAG(htim, TIM_FLAG_CC4);
-        if ((htim->Instance->CCMR2 & TIM_CCMR2_CC4S) != 0x00U){
-            saveTimestamp(htim, selectedTimer->ch + 3, TIM_CHANNEL_4, 1);
-        }
+        saveTimestamp(htim, selectedTimer->ch + 3, TIM_CHANNEL_4, 1);
     }
 
     // After all channels have been updated, increase the coarse.
@@ -171,7 +153,7 @@ void restartTimerISR(TIM_HandleTypeDef* htim) {
     }
 }
 
-uint8_t snprintf64Hex(char* outMsg, uint8_t msgSize, uint64_t n) {
+inline uint8_t snprintf64Hex(char* outMsg, uint8_t msgSize, uint64_t n) {
     static char temp[16];
     uint8_t index = 0;
     while(n != 0) {
