@@ -164,7 +164,7 @@ void SystemClock_Config(void)
 static void MX_NVIC_Init(void)
 {
   /* TIM1_UP_TIM16_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(TIM1_UP_TIM16_IRQn, 2, 0);
+  HAL_NVIC_SetPriority(TIM1_UP_TIM16_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(TIM1_UP_TIM16_IRQn);
   /* TIM1_CC_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(TIM1_CC_IRQn, 0, 0);

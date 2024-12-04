@@ -14,14 +14,10 @@ void initMCU(TIM_HandleTypeDef* htim1, UART_HandleTypeDef* huart2) {
 }
 
 void loopMCU() {
-    static uint32_t loopStart = 0;
-    static char outMsg[512];
+    static char outMsg[1024];
     
-    if((HAL_GetTick() - loopStart) > TX_TIME_INTERVAL) {
+    if(readyToPrintHWTimer(&hwTimers.htim1)) {
         uint16_t msgSize = printHWTimer(&hwTimers.htim1, outMsg, sizeof(outMsg));
-
         HAL_UART_Transmit(huart, (uint8_t*) outMsg, msgSize, 1000);
-        
-        loopStart = HAL_GetTick();
     } 
 }

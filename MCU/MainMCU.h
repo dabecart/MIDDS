@@ -5,7 +5,7 @@
 #include "HWTimers.h"
 #include "stm32g4xx_hal.h"
 
-#define TX_TIME_INTERVAL 10 // ms
+#define TX_TIME_INTERVAL 5 // ms
 
 void initMCU(TIM_HandleTypeDef* htim1, UART_HandleTypeDef* huart2);
 
