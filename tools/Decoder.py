@@ -44,6 +44,7 @@ if __name__ == '__main__':
         if (perf_counter() - lastPrint) > 5.0:
             lastPrint = perf_counter()
             for key, ch in channels.items():
+                if ch.totalCounts < 2: continue
                 print(f'{key}: {ch.getFrequency():.4f} ')
                 ch.initTx = perf_counter_ns()
                 ch.totalCounts = 0
@@ -140,12 +141,16 @@ if __name__ == '__main__':
             timChKey: str = f'T{counterID}.{channelID}'
             timCh: TimerChannel|None = channels.get(timChKey, None)
             if timCh is None:
+                # If the timer save file didn't exist, create it.
                 channels[timChKey] = TimerChannel(timChKey)
                 timCh = channels[timChKey]
 
-            timCh.totalCounts += len(parsedData)
+            # The captured values also have the current level of the signal on its LSB.
+            values = [(x >> 1) for x in parsedData]
+
+            timCh.totalCounts += len(values)
             timCh.lastTx = perf_counter_ns()
-            for hexNum in parsedData:
+            for hexNum in values:
                 timCh.file.write(f'{hexNum}\n')    
 
 

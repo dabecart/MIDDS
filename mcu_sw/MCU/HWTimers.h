@@ -12,6 +12,8 @@
 typedef struct HWTimerChannel {
     // uint64_t  triggers[COUNTS_PER_CHANNEL];
     CircularBuffer64  data;
+    GPIO_TypeDef* gpioPort;
+    uint32_t gpioPin;
 } HWTimerChannel;
 
 typedef struct HWTimer {
@@ -22,9 +24,17 @@ typedef struct HWTimer {
 
 typedef struct HWTimers {
     HWTimer htim1;
+    HWTimer htim2;
+    HWTimer htim3;
+    HWTimer htim4;
 } HWTimers;
 
-void initHWTimers(TIM_HandleTypeDef* htim1, HWTimers* htimers);
+void initHWTimers(HWTimers* htimers, 
+                  TIM_HandleTypeDef* htim1, 
+                  TIM_HandleTypeDef* htim2, 
+                  TIM_HandleTypeDef* htim3, 
+                  TIM_HandleTypeDef* htim4
+                 );
 
 void startHWTimers(HWTimers* htimers);
 
@@ -35,6 +45,7 @@ uint8_t readyToPrintHWTimer(HWTimer* hwTimer);
 uint16_t snprintf64Hex(char* outMsg, uint16_t msgSize, uint64_t n);
 
 void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel, uint32_t channelID, uint8_t addCoarseIncrement);
+void checkAllChannelsTimestamps(HWTimer* timer, uint8_t addCoarseIncrement);
 void captureInputISR(TIM_HandleTypeDef* htim);
 void restartTimerISR(TIM_HandleTypeDef* htim);
 
