@@ -32,7 +32,7 @@ uint16_t printHWTimer(HWTimer* hwTimer, char* msg, const uint16_t maxMsgLen);
 
 uint8_t readyToPrintHWTimer(HWTimer* hwTimer);
 
-uint8_t snprintf64Hex(char* outMsg, uint8_t msgSize, uint64_t n);
+uint16_t snprintf64Hex(char* outMsg, uint16_t msgSize, uint64_t n);
 
 void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel, uint32_t channelID, uint8_t addCoarseIncrement);
 void captureInputISR(TIM_HandleTypeDef* htim);

@@ -27,33 +27,45 @@ void startHWTimers(HWTimers* htimers) {
 }
 
 uint8_t readyToPrintHWTimer(HWTimer* hwTimer) {
-    return (hwTimer->ch[0].data.len  + hwTimer->ch[1].data.len + hwTimer->ch[2].data.len + hwTimer->ch[3].data.len) > 10;
+    return (hwTimer->ch[0].data.len + hwTimer->ch[1].data.len + 
+            hwTimer->ch[2].data.len + hwTimer->ch[3].data.len   ) > 15;
 }
 
 uint16_t printHWTimer(HWTimer* hwTimer, char* outMsg, const uint16_t maxMsgLen) {
     uint16_t msgSize = 0;
     HWTimerChannel* hwCh = NULL;
-    uint64_t readVal;
     uint32_t currentMessages;
+#if MCU_TX_IN_ASCII
+    uint64_t readVal;
+#endif
 
     for(uint8_t channelIndex = 0; channelIndex < CHANNEL_COUNT; channelIndex++) {
         hwCh = hwTimer->ch + channelIndex;
 
         if(hwCh->data.len == 0) continue;
 
-        msgSize += snprintf(outMsg + msgSize, maxMsgLen - msgSize, 
-                            "C%d.%d:", hwTimer->counterID, channelIndex);
-
         currentMessages = hwCh->data.len;   // Make it constant at this point.
+        if(currentMessages > 99) currentMessages = 99;
+        msgSize += snprintf(outMsg + msgSize, maxMsgLen - msgSize, 
+                            "T%d.%d.%02ld:", hwTimer->counterID, channelIndex, currentMessages);
+        // This upper string must be a multiple of eight bytes long (in binary output mode).
+
         for(uint8_t countIndex = 0; countIndex < currentMessages; countIndex++) {
-            pop_cb64(&hwCh->data, &readVal);
-            msgSize += snprintf64Hex(
-                            outMsg + msgSize, 
-                            maxMsgLen - msgSize,
-                            readVal
-                        );
+            #if MCU_TX_IN_ASCII
+                pop_cb64(&hwCh->data, &readVal);
+                msgSize += snprintf64Hex(
+                                outMsg + msgSize, 
+                                maxMsgLen - msgSize,
+                                readVal
+                            );
+            #else
+                pop_cb64(&hwCh->data, (uint64_t*) (outMsg + msgSize));
+                msgSize += 8;
+            #endif
         }
-        msgSize += snprintf(outMsg + msgSize, maxMsgLen-msgSize, "\n");
+        #if MCU_TX_IN_ASCII
+            msgSize += snprintf(outMsg + msgSize, maxMsgLen-msgSize, "\n");
+        #endif
     }
 
     return msgSize;
@@ -153,7 +165,7 @@ void restartTimerISR(TIM_HandleTypeDef* htim) {
     }
 }
 
-inline uint8_t snprintf64Hex(char* outMsg, uint8_t msgSize, uint64_t n) {
+inline uint16_t snprintf64Hex(char* outMsg, uint16_t msgSize, uint64_t n) {
     static char temp[16];
     uint8_t index = 0;
     while(n != 0) {

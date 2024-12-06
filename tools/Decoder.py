@@ -3,7 +3,11 @@ import signal
 from io import TextIOWrapper
 from time import perf_counter, perf_counter_ns
 
-numberOfChannels: int = 4
+numberOfChannels: int   = 4
+decodeInASCII: bool     = False
+
+if not decodeInASCII:
+    import struct
 
 class LoopKiller:
     exitNow = False
@@ -24,7 +28,7 @@ class TimerChannel:
     
     def getFrequency(self) -> float:
         return self.totalCounts * 1e9 / (self.lastTx - self.initTx)
-    
+
 if __name__ == '__main__':
     killer = LoopKiller()
     serial = serial.Serial("COM5", baudrate=921600)
@@ -50,37 +54,87 @@ if __name__ == '__main__':
             if b'\n' not in inputBuffer:
                 continue
 
-            lowIndex: int = inputBuffer.find(b'\n')
-            message: bytearray = inputBuffer[:lowIndex+1]
-            inputBuffer = inputBuffer[lowIndex+1:]
+            parsedData: list[int]|None = None
+            if decodeInASCII:
+                lowIndex: int = inputBuffer.find(b'\n')
+                message: bytearray = inputBuffer[:lowIndex+1]
+                inputBuffer = inputBuffer[lowIndex+1:]
 
-            if len(message) == 0: 
-                print("Null length")
-                continue
+                if len(message) < 8: 
+                    continue
 
-            if message[0] != ord(b'C'):
-                print("Missing C")
-                continue
+                if not message.startswith(b'T'):
+                    print("Missing T at the start")
+                    continue
 
-            # Message format: C{counterID}.{channelID}:{data}
-            #                  \        HEADER       / \DATA/
-            bulk = message[1:].split(b':')
-            header = bulk[0].split(b'.')
-            data = bulk[1]
+                # Message format: T{counterID}.{channelID}.{countNumber:02}:{data}
+                #                  \              HEADER                  / \DATA/
+                bulk = message[1:].split(b':')
+                header = bulk[0].split(b'.')
+                data = bulk[1]
 
-            if len(header) != 2:
-                print("Wrong header length")
-                continue
+                if len(header) != 3:
+                    print("Wrong header length")
+                    continue
 
-            try:
-                counterID = int(header[0])
-                channelID = int(header[1])
-            except:
-                print("Cannot parse header")
-                continue
-            
-            if 0 > channelID >= numberOfChannels:
-                print("Wrong channel ID")
+                try:
+                    counterID   = int(header[0])
+                    channelID   = int(header[1])
+                    countNumber = int(header[2])
+                except:
+                    print(f"Cannot parse header")
+                    continue
+                
+                if 0 > channelID >= numberOfChannels:
+                    print("Wrong channel ID")
+                    continue
+
+                # Start from 1 forward, as the {data} format is x{hex number}x{hex number}
+                parsedData = [int(hexNum, 16) for hexNum in data[1:].split(b'x')]
+                if len(parsedData) != countNumber:
+                    print(message)
+                    print("Data count wrong")
+                    continue
+
+            else:
+                lowIndex: int = inputBuffer.find(b'T')
+                while(lowIndex != -1):
+                    message: bytearray = inputBuffer[lowIndex:]
+
+                    if len(message) < 8 \
+                       or message[2] != ord(b'.') or message[4] != ord(b'.') \
+                       or message[7] != ord(b':'):
+                        lowIndex = inputBuffer.find(b'T', lowIndex+1)
+                        continue
+
+                    try:
+                        counterID   = int(chr(message[1]))
+                        channelID   = int(chr(message[3]))
+                        countNumber = int(message[5:7])
+                    except:
+                        lowIndex = inputBuffer.find(b'T', lowIndex+1)
+                        continue
+                    
+                    if 0 > channelID >= numberOfChannels:
+                        print("Wrong channel ID")
+                        lowIndex = inputBuffer.find(b'T', lowIndex+1)
+                        continue
+
+                    data = message[8:(8 + 8*countNumber)]
+
+                    if len(data) != 8*countNumber:
+                        lowIndex = inputBuffer.find(b'T', lowIndex+1)
+                        continue
+                    
+                    # A single data sample is represented by 8 bytes.
+                    parsedData = [struct.unpack('<Q', data[i*8:(i + 1)*8])[0] for i in range(countNumber)]
+
+                    # If this point was reached, the input buffer can be cleansed from this previous 
+                    # message.
+                    inputBuffer = inputBuffer[lowIndex + (8 + 8*countNumber):]
+                    break
+
+            if parsedData is None:
                 continue
 
             timChKey: str = f'T{counterID}.{channelID}'
@@ -88,14 +142,12 @@ if __name__ == '__main__':
             if timCh is None:
                 channels[timChKey] = TimerChannel(timChKey)
                 timCh = channels[timChKey]
-            
-            # Start from 1 forward, as the {data} format is x{hex number}x{hex number}
-            numberChunks = data[1:].split(b'x')
 
-            timCh.totalCounts += len(numberChunks)
+            timCh.totalCounts += len(parsedData)
             timCh.lastTx = perf_counter_ns()
-            for hexNum in numberChunks:
-                timCh.file.write(f'{int(hexNum, 16)}\n')
+            for hexNum in parsedData:
+                timCh.file.write(f'{hexNum}\n')    
+
 
     for ch in channels.values():
         ch.file.close()
