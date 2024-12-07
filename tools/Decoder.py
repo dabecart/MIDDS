@@ -1,3 +1,15 @@
+# **************************************************************************************************
+# @file Decoder.py
+# @brief Listens to the serial port, decodes the input and stores it on .csv files.
+#
+# @project   MIDDS
+# @version   1.0
+# @date      2024-12-07
+# @author    @dabecart
+#
+# @license   This project is licensed under the MIT License - see the LICENSE file for details.
+# **************************************************************************************************
+
 import serial
 import signal
 from io import TextIOWrapper

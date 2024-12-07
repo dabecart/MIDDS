@@ -1,3 +1,15 @@
+/***************************************************************************************************
+ * @file HWTimers.c
+ * @brief Handles the storage and interrupts of hardware timers.
+ * 
+ * @project MIDDS
+ * @version 1.0
+ * @date    2024-12-07
+ * @author  @dabecart
+ * 
+ * @license This project is licensed under the MIT License - see the LICENSE file for details.
+***************************************************************************************************/
+
 #include "HWTimers.h"
 #include "MainMCU.h"
 
@@ -128,7 +140,7 @@ uint8_t readyToPrintHWTimer(HWTimer* hwTimer) {
             hwTimer->ch[2].data.len + hwTimer->ch[3].data.len   ) > 15;
 }
 
-uint16_t printHWTimer(HWTimer* hwTimer, char* outMsg, const uint16_t maxMsgLen) {
+uint16_t sprintfHWTimer(HWTimer* hwTimer, char* outMsg, const uint16_t maxMsgLen) {
     uint16_t msgSize = 0;
     HWTimerChannel* hwCh = NULL;
     uint32_t currentMessages;
@@ -136,7 +148,7 @@ uint16_t printHWTimer(HWTimer* hwTimer, char* outMsg, const uint16_t maxMsgLen) 
     uint64_t readVal;
 #endif
 
-    for(uint8_t channelIndex = 0; channelIndex < CHANNEL_COUNT; channelIndex++) {
+    for(uint8_t channelIndex = 0; channelIndex < HW_TIMER_CHANNEL_COUNT; channelIndex++) {
         hwCh = hwTimer->ch + channelIndex;
 
         if(hwCh->data.len == 0) continue;
@@ -168,7 +180,6 @@ uint16_t printHWTimer(HWTimer* hwTimer, char* outMsg, const uint16_t maxMsgLen) 
     return msgSize;
 }
 
-// TIMER INTERRUPTS
 inline void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel, 
                           uint32_t channelID, uint8_t addCoarseIncrement) {
     if(channel->data.len >= channel->data.size) {

@@ -1,3 +1,16 @@
+# **************************************************************************************************
+# @file Plotter.py
+# @brief Plots a graph of all .csv files on a given folder. If no folder is given, then it will look
+# for all .csv files on the cwd.
+#
+# @project   MIDDS
+# @version   1.0
+# @date      2024-12-07
+# @author    @dabecart
+#
+# @license   This project is licensed under the MIT License - see the LICENSE file for details.
+# **************************************************************************************************
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -44,6 +57,13 @@ def lpf(x, N):
         y[k] = np.sum(sample) / len(sample)
     return y
 
+def medianFilter(x):
+    xFiltered = np.copy(x)
+    for n in range(N_filter,len(x)-N_filter-1):
+        sample = x[(n-N_filter):(n+N_filter+1)]
+        xFiltered[n] = np.median(sample)
+    return xFiltered
+
 def plotCSV(fileName, ax, graphColor):
     try:
         data = pd.read_csv(fileName).values * deltaMicrosecond
@@ -55,13 +75,11 @@ def plotCSV(fileName, ax, graphColor):
         data    = data[::max(1,len(data)//maxPointsInPlot)]
 
         if applyFilter:
-            # Median filter.
-            for n in range(N_filter,len(deltas)-N_filter-1):
-                sample = deltas[(n-N_filter):(n+N_filter+1)]
-                deltas[n] = np.median(sample)
+            deltas = medianFilter(deltas)
+            data = medianFilter(data)
 
         fileName = os.path.basename(fileName)
-        print(f'{fileName:<15} Count={len(deltas):<10} Avg={np.average(deltas):<10.4} Std={np.std(deltas):<10.4}')
+        print(f'{fileName:<15} Count={len(deltas):<10} Avg={np.average(deltas):<10.4} Std={np.std(deltas):<10.4} Max={np.max(deltas):<10.4}')
 
         lpDelta = lpf(deltas, N_lpf)
         # X-Axis in seconds.

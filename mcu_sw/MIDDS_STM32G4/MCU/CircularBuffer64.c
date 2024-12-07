@@ -1,3 +1,15 @@
+/***************************************************************************************************
+ * @file CircularBuffer64.c
+ * @brief A simple Circular or Ring buffer implementation for 64 bit data.
+ * 
+ * @project MIDDS
+ * @version 1.0
+ * @date    2024-12-07
+ * @author  @dabecart
+ * 
+ * @license This project is licensed under the MIT License - see the LICENSE file for details.
+***************************************************************************************************/
+
 #include "CircularBuffer64.h"
 
 void init_cb64(CircularBuffer64* pstCB, uint32_t bufferSize) {

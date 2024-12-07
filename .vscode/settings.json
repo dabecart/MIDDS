@@ -5,7 +5,8 @@
         "string.h": "c",
         "mainmcu.h": "c",
         "hwtimers.h": "c",
-        "circularbuffer.h": "c"
+        "circularbuffer.h": "c",
+        "stdio.h": "c"
     },
     "makefile.makefilePath": "Debug\\makefile"
 }

@@ -1,3 +1,15 @@
+/***************************************************************************************************
+ * @file CircularBuffer.c
+ * @brief A simple Circular or Ring buffer implementation.
+ * 
+ * @project MIDDS
+ * @version 1.0
+ * @date    2024-12-07
+ * @author  @dabecart
+ * 
+ * @license This project is licensed under the MIT License - see the LICENSE file for details.
+***************************************************************************************************/
+
 #include "CircularBuffer.h"
 
 void init_cb(CircularBuffer* pstCB, uint32_t bufferSize) {

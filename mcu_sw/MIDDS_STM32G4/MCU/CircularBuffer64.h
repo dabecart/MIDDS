@@ -1,3 +1,15 @@
+/***************************************************************************************************
+ * @file CircularBuffer64.h
+ * @brief A simple Circular or Ring buffer implementation for 64 bit data.
+ * 
+ * @project MIDDS
+ * @version 1.0
+ * @date    2024-12-07
+ * @author  @dabecart
+ * 
+ * @license This project is licensed under the MIT License - see the LICENSE file for details.
+***************************************************************************************************/
+
 #ifndef CIRCULAR_BUFFER_64_h
 #define CIRCULAR_BUFFER_64_h
 
@@ -16,26 +28,26 @@ typedef struct
 } CircularBuffer64;
 
 /**************************************** FUNCTION *************************************************
- * \brief Starts a CircularBuffer.
- * \param pCB. Pointer to the CircularBuffer struct.
- * \param bufferSize. Size of the buffer to be instantiated.
- * \return None 
+ * @brief Starts a CircularBuffer64.
+ * @param pCB. Pointer to the CircularBuffer64 struct.
+ * @param bufferSize. Size of the buffer to be instantiated.
+ * @return None 
 ***************************************************************************************************/
 void init_cb64(CircularBuffer64* pCB, uint32_t bufferSize);
 
 /**************************************** FUNCTION *************************************************
- * \brief Pushes a single byte into a CircularBuffer. Advances the tail index.
- * \param pCB. Pointer to the CircularBuffer struct.
- * \param item. Byte to be store into the buffer.
- * \return TRUE if the push was successful. 
+ * @brief Pushes a single byte into a CircularBuffer64. Advances the tail index.
+ * @param pCB. Pointer to the CircularBuffer64 struct.
+ * @param item. Byte to be store into the buffer.
+ * @return 1 if the push was successful. 
 ***************************************************************************************************/
 uint8_t push_cb64(CircularBuffer64* pCB, uint64_t item);
 
 /**************************************** FUNCTION *************************************************
- * \brief Reads a byte from a CircularBuffer. Advances the head index.
- * \param pCB. Pointer to the CircularBuffer struct.
- * \param item. Where the popped byte will be stored.
- * \return uint8_t TRUE if the read item is valid. 
+ * @brief Reads a byte from a CircularBuffer64. Advances the head index.
+ * @param pCB. Pointer to the CircularBuffer struct.
+ * @param item. Where the popped byte will be stored.
+ * @return 1 if the read item is valid. 
 ***************************************************************************************************/
 uint8_t pop_cb64(CircularBuffer64* pCB, uint64_t* item);
 
