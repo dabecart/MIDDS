@@ -28,6 +28,7 @@ typedef struct HWTimerChannel {
     CircularBuffer64  data;
     GPIO_TypeDef* gpioPort;
     uint32_t gpioPin;
+    uint8_t isSYNC;
 } HWTimerChannel;
 
 // The descriptors of a Hardware Timer.
@@ -43,6 +44,20 @@ typedef struct HWTimers {
     HWTimer htim2;
     HWTimer htim3;
     HWTimer htim4;
+
+    float       frequencySYNC;
+    float       dutyCycleSYNC;
+    
+    // Number of increments of the high pulse of SYNC.
+    uint64_t    measuredPeriodHighSYNC;
+    // Number of increments of the low pulse of SYNC.
+    uint64_t    measuredPeriodLowSYNC;
+    // Number of increments that the high pulse of SYNC should take. Calculated from the frequency
+    // and duty cycle of the SYNC signal.
+    uint64_t    idealPeriodHighSYNC;
+    // Number of increments that the high pulse of SYNC should take. Calculated from the frequency
+    // and duty cycle of the SYNC signal.
+    uint64_t    idealPeriodLowSYNC;
 } HWTimers;
 
 /**************************************** FUNCTION *************************************************
@@ -61,10 +76,24 @@ void initHWTimers(HWTimers* htimers,
                  );
 
 /**************************************** FUNCTION *************************************************
+ * @brief Set the SYNC signal parameters.
+ * @param htimers. Pointer to the HWTimers struct containing all data related to timers.
+ * @param frequency. Frequency of the SYNC signal. 
+ * @param dutyCycle. Duty cycle of the SYNC signal.
+***************************************************************************************************/
+void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle);
+
+/**************************************** FUNCTION *************************************************
  * @brief Initialize all ISR related to the Hardware Timers.
  * @param htimers. Pointer to the HWTimers struct containing all data related to timers.
 ***************************************************************************************************/
 void startHWTimers(HWTimers* htimers);
+
+/**************************************** FUNCTION *************************************************
+ * @brief Clears all buffers of a HWTimer.
+ * @param hwTimer. Pointer to the HWTimer to clean.
+***************************************************************************************************/
+void clearHWTimer(HWTimer* hwTimer);
 
 /**************************************** FUNCTION *************************************************
  * @brief Prints the content of a HWTimer to a string.
@@ -122,10 +151,10 @@ void captureInputISR(TIM_HandleTypeDef* htim);
 
 /**************************************** FUNCTION *************************************************
  * @brief ISR function called on a Reset Event (when the TIM goes back to 0, either because and 
- * overflow or external reset).
+ * overflow or external reset) of the master timer.
  * @param htim. Timer handler that is requesting the ISR.
 ***************************************************************************************************/
-void restartTimerISR(TIM_HandleTypeDef* htim);
+void restartMasterTimerISR(TIM_HandleTypeDef* htim);
 
 // Defined in MainMCU.h
 extern HWTimers hwTimers;

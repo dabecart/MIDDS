@@ -6,7 +6,8 @@
         "mainmcu.h": "c",
         "hwtimers.h": "c",
         "circularbuffer.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "*.tcc": "cpp"
     },
     "makefile.makefilePath": "Debug\\makefile"
 }

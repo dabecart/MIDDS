@@ -45,10 +45,24 @@ uint8_t push_cb64(CircularBuffer64* pCB, uint64_t item);
 
 /**************************************** FUNCTION *************************************************
  * @brief Reads a byte from a CircularBuffer64. Advances the head index.
- * @param pCB. Pointer to the CircularBuffer struct.
+ * @param pCB. Pointer to the CircularBuffer64 struct.
  * @param item. Where the popped byte will be stored.
  * @return 1 if the read item is valid. 
 ***************************************************************************************************/
 uint8_t pop_cb64(CircularBuffer64* pCB, uint64_t* item);
+
+/**************************************** FUNCTION *************************************************
+ * @brief Reads a byte from a CircularBuffer64. Does not advance the head index.
+ * @param pCB. Pointer to the CircularBuffer64 struct.
+ * @param item. Where the read byte will be stored.
+ * @return 1 if the read item is valid. 
+***************************************************************************************************/
+uint8_t peek_cb64(CircularBuffer64* pCB, uint64_t* item);
+
+/**************************************** FUNCTION *************************************************
+ * @brief Empties the content of a cb64.
+ * @param pCB. Pointer to the CircularBuffer64 struct.
+***************************************************************************************************/
+void empty_cb64(CircularBuffer64* pCB);
 
 #endif // CIRCULAR_BUFFER_64_h

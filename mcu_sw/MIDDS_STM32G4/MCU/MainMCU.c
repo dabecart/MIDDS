@@ -26,6 +26,17 @@ void initMCU(TIM_HandleTypeDef* htim1,
     huart = huart2;
 
     startHWTimers(&hwTimers);
+
+    // Wait for a second and try to grab any SYNC pulse.
+    HAL_Delay(2000);
+
+    if(hwTimers.measuredPeriodHighSYNC != 0 || hwTimers.measuredPeriodLowSYNC != 0) {
+        // It is using a SYNC pulse, clear all current buffers.
+        clearHWTimer(&hwTimers.htim1);
+        clearHWTimer(&hwTimers.htim2);
+        clearHWTimer(&hwTimers.htim3);
+        clearHWTimer(&hwTimers.htim4);
+    }
 }
 
 void loopMCU() {

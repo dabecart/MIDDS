@@ -14,6 +14,10 @@
 #include "MainMCU.h"
 
 volatile uint64_t coarse = 0;
+volatile uint64_t newCoarse = 0;
+volatile uint64_t lastSyncTime = 0;
+volatile uint8_t currentSyncState = 0xFF;   // 0 = Low, 1 = High, 0xFF = Unknown/Not being used.
+volatile uint8_t syncPulseCount = 0;
 
 void initHWTimers(HWTimers* htimers, TIM_HandleTypeDef* htim1, TIM_HandleTypeDef* htim2, 
                   TIM_HandleTypeDef* htim3, TIM_HandleTypeDef* htim4)
@@ -38,6 +42,10 @@ void initHWTimers(HWTimers* htimers, TIM_HandleTypeDef* htim1, TIM_HandleTypeDef
     htimers->htim1.ch[2].gpioPin    = GPIO_PIN_10;
     htimers->htim1.ch[3].gpioPort   = GPIOA;
     htimers->htim1.ch[3].gpioPin    = GPIO_PIN_11;
+
+    // TODO: Temporary set A8 as the SYNC signal, but this should be modifiable.
+    // Also, be sure that this timer is the first that gets checked if it triggered.
+    htimers->htim1.ch[0].isSYNC = 1;
 
     // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
     // TIM2 initialization
@@ -97,6 +105,19 @@ void initHWTimers(HWTimers* htimers, TIM_HandleTypeDef* htim1, TIM_HandleTypeDef
     htimers->htim4.ch[3].gpioPort   = GPIOB;
     htimers->htim4.ch[3].gpioPin    = GPIO_PIN_9;
 
+    // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+    // SYNC Timer initialization
+    // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+    // Initial SYNC signal considered to be 1PPS 50% duty cycle.
+    setSyncParameters(htimers, 1.0, 0.5);
+}
+
+void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle) {
+    htimers->frequencySYNC = frequency;
+    htimers->dutyCycleSYNC = dutyCycle;
+
+    htimers->idealPeriodHighSYNC = MCU_FREQUENCY*dutyCycle/hwTimers.frequencySYNC;
+    htimers->idealPeriodLowSYNC  = MCU_FREQUENCY*(1.0 - dutyCycle)/hwTimers.frequencySYNC;
 }
 
 void startHWTimers(HWTimers* htimers) {
@@ -135,6 +156,13 @@ void startHWTimers(HWTimers* htimers) {
     HAL_TIM_IC_Start_IT(htimers->htim4.htim, TIM_CHANNEL_4);
 }
 
+void clearHWTimer(HWTimer* hwTimer) {
+    empty_cb64(&hwTimer->ch[0].data);
+    empty_cb64(&hwTimer->ch[1].data);
+    empty_cb64(&hwTimer->ch[2].data);
+    empty_cb64(&hwTimer->ch[3].data);
+}
+
 uint8_t readyToPrintHWTimer(HWTimer* hwTimer) {
     return (hwTimer->ch[0].data.len + hwTimer->ch[1].data.len + 
             hwTimer->ch[2].data.len + hwTimer->ch[3].data.len   ) > 15;
@@ -167,9 +195,15 @@ uint16_t sprintfHWTimer(HWTimer* hwTimer, char* outMsg, const uint16_t maxMsgLen
                                 maxMsgLen - msgSize,
                                 readVal
                             );
+                if((maxMsgLen - msgSize) <= 17) {
+                    break;
+                }
             #else
                 pop_cb64(&hwCh->data, (uint64_t*) (outMsg + msgSize));
                 msgSize += 8;
+                if((maxMsgLen - msgSize) <= 8) {
+                    break;
+                }
             #endif
         }
         #if MCU_TX_IN_ASCII
@@ -180,9 +214,38 @@ uint16_t sprintfHWTimer(HWTimer* hwTimer, char* outMsg, const uint16_t maxMsgLen
     return msgSize;
 }
 
+inline uint16_t snprintf64Hex(char* outMsg, uint16_t msgSize, uint64_t n) {
+    static char temp[16];
+    uint8_t index = 0;
+    while(n != 0) {
+        temp[index] = n % 16;
+        if(temp[index] <= 9) temp[index] += '0';
+        else temp[index] += 'A' - 10;
+        index++;
+        n /= 16;
+    }
+
+    if(index > msgSize) {
+        return 0;
+    }
+
+    outMsg[0] = 'x';
+    for(uint8_t i = 1; i <= index; i++) {
+        outMsg[i] = temp[index-i]; 
+    }
+
+    // Add 1 more for the 'x' on [0].
+    return index + 1;
+}
+
+
+// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+// TIMER ISR FUNCTIONS
+// vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+
 inline void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel, 
                           uint32_t channelID, uint8_t addCoarseIncrement) {
-    if(channel->data.len >= channel->data.size) {
+    if(channel->data.len >= channel->data.size || channel->gpioPort == NULL) {
         return;
     }
 
@@ -191,12 +254,58 @@ inline void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel,
     // captured value may belong to the new coarse which hasn't been updated still. If the captured
     // value is smaller than the current timer, then the captured value belongs to the new coarse
     // counter value (which still hasn't been updated).
-    if(addCoarseIncrement && (capturedVal < __HAL_TIM_GET_COUNTER(htim))) capturedVal += 0x10000ULL;
-    capturedVal += coarse;
+    if(addCoarseIncrement && (capturedVal < __HAL_TIM_GET_COUNTER(htim))){
+        capturedVal += newCoarse;
+    }else {
+        capturedVal += coarse;
+    }
+
+    uint8_t currentGPIOValue = (channel->gpioPort->IDR & channel->gpioPin) != 0;
+    if(channel->isSYNC) {
+        if(currentGPIOValue) {
+            // If the current GPIO level is HIGH, that means that the LOW period has just occurred.
+            hwTimers.measuredPeriodLowSYNC = capturedVal - lastSyncTime;
+        }else {
+            // If the current GPIO level is LOW, that means that the HIGH period has just occurred.
+            hwTimers.measuredPeriodHighSYNC = capturedVal - lastSyncTime;
+        }
+        lastSyncTime = capturedVal;
+        syncPulseCount++;
+        if(syncPulseCount >= 2) currentSyncState = currentGPIOValue;
+    }else if(currentSyncState != 0xFF){
+        // Apply SYNC corrections to pins which aren't SYNC.
+        // SYNC corrections are an interpolation between the previous HIGH or LOW measured period
+        // and the ideal periods that would give an ideal clock.
+        // measured     capturedVal - lastSyncTime      measuredPeriod
+        // -------- = ------------------------------- = -------------- -> Solve for idealCapturedVal
+        //  ideal     idealCapturedVal - lastSyncTime    idealPeriod
+        if(capturedVal >= lastSyncTime) {
+            // Enters here if this capture happened AFTER the current SYNC pulse.
+            if(currentSyncState == 0) {
+                capturedVal = lastSyncTime + 
+                            hwTimers.idealPeriodLowSYNC*(capturedVal - lastSyncTime)/
+                            hwTimers.measuredPeriodLowSYNC;
+            }else {
+                capturedVal = lastSyncTime + 
+                            hwTimers.idealPeriodHighSYNC*(capturedVal - lastSyncTime)/
+                            hwTimers.measuredPeriodHighSYNC;
+            }
+        }else {
+            // Enters here if this capture happened BEFORE the current SYNC pulse.
+            if(currentSyncState == 0) {
+                capturedVal = lastSyncTime - 
+                            hwTimers.idealPeriodLowSYNC*(lastSyncTime - capturedVal)/
+                            hwTimers.measuredPeriodLowSYNC;
+            }else {
+                capturedVal = lastSyncTime -
+                            hwTimers.idealPeriodHighSYNC*(lastSyncTime - capturedVal)/
+                            hwTimers.measuredPeriodHighSYNC;
+            }
+        }
+    }
 
     // Move the value to the left one bit. The LSB will signal the current state of the GPIO.
-    capturedVal <<= 1;
-    capturedVal |= (channel->gpioPort->IDR & channel->gpioPin) != 0;
+    capturedVal = (capturedVal << 1) | currentGPIOValue;
     push_cb64(&channel->data, capturedVal);
 }
 
@@ -244,45 +353,27 @@ void captureInputISR(TIM_HandleTypeDef* htim) {
     checkAllChannelsTimestamps(selectedTimer, 0);
 }
 
-void restartTimerISR(TIM_HandleTypeDef* htim) {
-    // This function is only called by TIM1.
+void restartMasterTimerISR(TIM_HandleTypeDef* htim) {
+    // This function is only called by TIM1 (the master timer).
+    uint32_t itFlags   = htim->Instance->SR;
+    uint32_t itEnabled = htim->Instance->DIER;
+
+    if(((itFlags & TIM_FLAG_UPDATE) == TIM_FLAG_UPDATE) && 
+       ((itEnabled & TIM_IT_UPDATE) == TIM_IT_UPDATE)) {
+        // Doing a clock overflow reset.
+        newCoarse = coarse + 0x10000ULL;
+    }
 
     // Before adding the coarse, check if there are any pending Capture Inputs on the timer 
-    // channels. If there are, save them but take into account that an clock reset has happened and
-    // the captured value may pertain to the new coarse, which still hasn't been incremented.
+    // channels. If there are, save them but take into account that an clock reset has happened 
+    // and the captured value may pertain to the new coarse, which still hasn't been incremented.
     checkAllChannelsTimestamps(&hwTimers.htim1, 1);
     checkAllChannelsTimestamps(&hwTimers.htim2, 1);
     checkAllChannelsTimestamps(&hwTimers.htim3, 1);
     checkAllChannelsTimestamps(&hwTimers.htim4, 1);
-
-    // After all channels have been updated, increase the coarse.
-    if((hwTimers.htim1.htim->Instance->SR & (TIM_FLAG_UPDATE)) == (TIM_FLAG_UPDATE) &&
-        (hwTimers.htim1.htim->Instance->DIER & (TIM_IT_UPDATE)) == (TIM_IT_UPDATE)) {
-        __HAL_TIM_CLEAR_FLAG(htim, TIM_FLAG_UPDATE);
-        coarse += 0x10000ULL;
-    }
-}
-
-inline uint16_t snprintf64Hex(char* outMsg, uint16_t msgSize, uint64_t n) {
-    static char temp[16];
-    uint8_t index = 0;
-    while(n != 0) {
-        temp[index] = n % 16;
-        if(temp[index] <= 9) temp[index] += '0';
-        else temp[index] += 'A' - 10;
-        index++;
-        n /= 16;
-    }
-
-    if(index > msgSize) {
-        return 0;
-    }
-
-    outMsg[0] = 'x';
-    for(uint8_t i = 1; i <= index; i++) {
-        outMsg[i] = temp[index-i]; 
-    }
-
-    // Add 1 more for the 'x' on [0].
-    return index + 1;
+    
+    // After all channels have been updated, modify the coarse.
+    coarse = newCoarse;
+    
+    __HAL_TIM_CLEAR_FLAG(htim, TIM_FLAG_UPDATE);
 }

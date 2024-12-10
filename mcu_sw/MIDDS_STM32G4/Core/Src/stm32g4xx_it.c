@@ -208,7 +208,7 @@ void SysTick_Handler(void)
 void TIM1_UP_TIM16_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM1_UP_TIM16_IRQn 0 */
-  restartTimerISR(&htim1);
+  restartMasterTimerISR(&htim1);
   return;
   /* USER CODE END TIM1_UP_TIM16_IRQn 0 */
   HAL_TIM_IRQHandler(&htim1);

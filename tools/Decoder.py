@@ -156,13 +156,14 @@ if __name__ == '__main__':
                 # If the timer save file didn't exist, create it.
                 channels[timChKey] = TimerChannel(timChKey)
                 timCh = channels[timChKey]
+                print(f'Added new timer {timChKey}')
 
             # The captured values also have the current level of the signal on its LSB.
-            values = [(x >> 1) for x in parsedData]
+            # parsedData = [(x >> 1) for x in parsedData]
 
-            timCh.totalCounts += len(values)
+            timCh.totalCounts += len(parsedData)
             timCh.lastTx = perf_counter_ns()
-            for hexNum in values:
+            for hexNum in parsedData:
                 timCh.file.write(f'{hexNum}\n')    
 
 
