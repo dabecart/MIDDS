@@ -355,6 +355,8 @@ void captureInputISR(TIM_HandleTypeDef* htim) {
 
 void restartMasterTimerISR(TIM_HandleTypeDef* htim) {
     // This function is only called by TIM1 (the master timer).
+    // Even though captureInputISR() and this function have the same priority in NVIC, this function
+    // interrupts the previous one, I suppose it has something to do with hardware priority.
     uint32_t itFlags   = htim->Instance->SR;
     uint32_t itEnabled = htim->Instance->DIER;
 

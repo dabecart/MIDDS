@@ -1,6 +1,8 @@
 # MIDDS
 *Monitoring Interface of Digital and Differential Signals, by @dabecart.*
 
+<!-- Revise if the final CLK frequency is 25MHz or 10MHz -->
+
 ## Overview
 
 The **MIDDS** (hereinafter called the Monitor) is a peripheral board to connect to a computer via Ethernet that adds GPIO capabilities to your software. The Monitor does not only work as a reliable General-Purpose Input/Output but also offers high accuracy timestamping. It accepts both TTL and LVDS signals, in the 0V-5V range, and it has a dedicated input to feed your own SYNC signal to synchronize an external clock source with the Monitor.
@@ -70,41 +72,21 @@ This is why the MIDDS also has a SYNC input that allows the user to input its re
 
 The following is the synchronization sequence of the SYNC signal with the MIDDS clock:
 
-1. During power up, the OCXO will start heating up, and after 5 minutes, it will generate a stable clock signal of ±10 ppb.
-2. When the MIDDS detects that a stable temperature has been achieved on the OCXO it will power up, sending a "READY" message to the computer. It will set its initial time `t0` and it will start timestamping from that moment forward in reference to `t0`. Bear in mind this happens in the absence of a SYNC pulse.
-3. The SYNC signal is used to synchronize the hardware timers with the external clock. It is very straightforward: when a SYNC edge, either rising or falling, is detected, the counters get reset. The MCU detects that this reset came from the SYNC input and not from the normal overflow of the counter. When an overflow occurs, the coarse gets incremented by exactly `2^16` steps; but, when a SYNC pulse is detected, the coarse gets incremented from the previous coarse at T_SYNC a number of steps equal to the `T_SYNC*DutyCycle` if falling or `T_SYNC*(1-DutyCycle)` if rising. 
-   
-   <img src="imgs/SYNCPulses.png" width="600"/>
-
-4. The first SYNC rising pulse detected by the MCU will be automatically set as `t0`. 
-5. If the computer is synchronized with the SYNC signal it may also set the current time of the MIDDS in reference to the last SYNC rising pulse.
+<!-- TODO -->
 
 # Hardware and Software design
 
 In this section, an overview of the hardware and software design is shown.
 
-## TTL-GPIOs
+## Hardware timestamping
 
-<img src="imgs/TTLGPIOs.png" width="600"/>
+The Hardware timers, be it TIMx or HRTIM, consist of a binary counter (16 or 32-bit in size) that increments at an specific rate, normally a multiple of the MCU clock. These timers have an assortment of *channels* which have many functions. In particular, the MIDDS uses a mode called "Capture Input": when an edge is detected on certain pin, the value from the binary counter of the timer gets stored on a register of the channel associated with the pin. This value is stored until it is read from software, albeit it can be overwritten by another input pulse so, if no edge is to be missed, the software must be speedy in its operation.
 
-As it can be seen, there is an (almost) direct connection between the external connection of the IO and the GPIO of the MCU, allowing for very fast electronic transitions. The "Voltage Protection" block is an assortment of protection diodes in parallel with the lines that guards against ESD or overvoltage peaks.
+The MCU has a master timer, the HRTIM. Its binary counter is synchronized with the rest of timers using internal events, such that when HRTIM overflows and resets so they do the rest of timers, that way, all counters are valued with the same "fine counter". This also reduces complexity because from software there is only one overflow event, instead of an event per timer.
 
-Connected to the MCU’s GPIO is an "Edge detector" which basically generates a short pulse every time there is a voltage change on the physical GPIO line, be it working as input or output. This block also guards against spurious edges and environmental noise. Note that the detector also has an "ENABLE" input: this allows the MCU to mask those signals which do not need to be timestamped.
+After an edge is detected, an interrupt (ISR) is requested. If the interrupt gets served, the MCU reads the "Capture Input register" associated with the input which caused the event to be triggered.
 
-The pulse of the "Edge detector" is fed to one of the seven available HRTIM inputs: on a rising edge, the HRTIM saves its current time value and calls DMA to transport it to a safe place in memory. As all this is hardware controlled, this transaction is very fast. This allows the HRTIM to be "blocked" for very short periods of time, allowing for very fast and close-together reads.
-
-Note that the triggering of the HRTIM happens all on a hardware level. That means that even outgoing signals from the MCU (if the GPIO were to be configured as an output) get timestamped not on receiving the software call, but on the real physical line. This gets rid of delays caused by intermediary interruption calls or slow rising signals (caused by low input impedance on the external device); in other words, the monitoring is always being done on the physical layer, never on the software layer.
-
-After a DMA stores data in memory, an interrupt (ISR) is requested. If the interrupt gets served, the MCU reads the GPIO port associated with the input which caused the HRTIM to be activated. A GPIO port controls the state of 16 individual GPIOs; therefore, when a GPIO port is read, it is being read the state of 16 GPIOs in one go. The MCU then compares the current port read with a latter one, those bits which have changed its value are the ones associated with the GPIO which triggered the ISR.
-
-If the ISR does not get served, due to another more preemptive task, the timer will not be lost. There will be just a small delay in the communications.
-
-Note: what will be most desirable would be to get the HRTIM to trigger two DMA requests: one for the transfer of the timer value from the HRTIM and another for the transfer of the GPIO input register GPIOx_IDR to memory, but that seems to not be possible without an intermediary software interruption.
-
-## LVDS Inputs
-
-<img src="imgs/LVDS_GPIOs.png" width="600"/>
-
+## Selectable Inputs/Outputs with TTL and LVDS levels
 The LVDS inputs are similar to their TTL counterparts, it only differs by a "Differential to TTL" converter that is put before the GPIO of the MCU. This converter takes the ±400mV input and converts it into a +3.3V TTL signal and vice versa (this is controlled with the DIRection input). Although not pointed out in the diagram, bear in mind that a LVDS signal needs of two lines to work. Both "Voltage protection" and "Differential to TTL" blocks work on two lines. The TTL signal will be generated referenced to common GND.
 
 ## Characteristics of timestamped Inputs/Outputs
@@ -113,7 +95,7 @@ The MIDDS has three different types of timestamped I/Os:
 
 - High accuracy, with a precision of 2.5ns.
 - Medium accuracy, with a precision of 5ns.
-- Low accuracy, with a precision of no more than 50ns, although this may depend on the software load of the MCU.
+- Low accuracy, with a precision of no more than 1ms, although this may depend on the software load of the MCU.
 
 ### High accuracy timestamped I/Os
 
@@ -135,7 +117,83 @@ In conjunction, they will all work as 16-bit timers at half the MCU’s clock sp
 
 The remaining GPIOs of the MCU can also be software timestamped. When an edge is detected on one of these GPIOs, an ISR gets triggered. During this ISR, the MCU will grab the current time from the HRTIM and will then timestamp this new edge. Therefore, the accuracy of these I/Os relies on how "free" the MCU is at the moment: if the MCU is not working at that instant, the I/O will be timestamped almost immediately; but if the MCU is doing some other work, this GPIO will be timestamped when it gets free of the more pressing chores, such as the high and medium accuracy I/Os.
 
-## Software priorities
+# Communication protocol
+The MIDDS protocol has been designed to be as quick and lightweight as possible to be generated and parsed, while also being easy to be read by a human.
+
+- Bytes are formatted in little-endian.
+- Bytes are sent from left to right. In the case of the tables below, from up to bottom.
+- There is no acknowledgement between messages:
+  - If the message is not well formatted, the receiving end of the communication should discard it.
+  - If a message is not understood by the MIDDS, it will not answer to it nor will apply any changes to its internal configuration.
+
+## Commands
+
+- Input (`I`). Gives the value of a MIDDS *input*, *output* or *monitoring* channel. This read can be instant or delayed until a certain time.
+  - It is asked first by the computer and answered by MIDDS.
+  - Command format. 13 bytes long.
+
+    | Field              | Value                                | Type   | Byte size | Byte Offset |
+    |--------------------|--------------------------------------|--------|-----------|-------------|
+    | Start character    | `$`                                  | `char` | 1         | 0           |
+    | Command descriptor | `I`                                  | `char` | 1         | 1           |
+    | Channel number     | `00` to `99`                         | `char` | 2         | 2           |
+    | Read value         | PC: do not care<br>MIDDS: `0` or `1` | `char` | 1         | 4           |
+    | Time               | ---                                  | `time` | 8         | 5           |
+
+- Output (`O`). Sets the value of an *output* channel. This output can be instant or delayed until a certain time.
+  - Sent by the computer.
+  - If this command is sent to a *monitoring* or *input* channel it will be discarded.
+  - If the command is sent to a *disabled* channel, it sets its inner output value so that if it is set as an output, that will be its initial value. If not sent, the initial value of the output channel cannot be asserted, unless it is read beforehand with an `I` command.
+  - Command format. 13 bytes long.
+  
+    | Field              | Value        | Type   | Byte size | Byte Offset |
+    |--------------------|--------------|--------|-----------|-------------|
+    | Start character    | `$`          | `char` | 1         | 0           |
+    | Command descriptor | `O`          | `char` | 1         | 1           |
+    | Channel number     | `00` to `99` | `char` | 2         | 2           |
+    | Write value        | `0` or `1`   | `char` | 1         | 4           |
+    | Time               | ---          | `time` | 8         | 5           |
+
+- Monitor (`M`). 
+  - Sent only by MIDDS.
+  - Command format. 16 bytes long minimum.
+
+    | Field              | Value                                   | Type     | Byte size | Byte Offset |
+    |--------------------|-----------------------------------------|----------|-----------|-------------|
+    | Start character    | `$`                                     | `char`   | 1         | 0           |
+    | Command descriptor | `M`                                     | `char`   | 1         | 1           |
+    | Channel number     | `00` to `99`                            | `char`   | 2         | 2           |
+    | Number of samples  | `0000` to `9999`                        | `char`   | 4         | 4           |
+    | `#n` sample        | *See below*                             | `sample` | 1         | 8 + `#n`*8  |
+
+  A `sample` is a `time` variable that has been bit-shifted one place to the left and ORed with the type of edge that triggered the sample:
+  - Falling edge: `0`
+  - Rising edge: `1`
+  
+- Channel configuration (`C`). Sets the configuration of a channel of the MIDDS.
+  - Can only be sent by the computer. It can be a:
+    - Write configuration. Overrides the previous configuration of the channel.
+    - Read configuration. Asks the MIDDS for the current configuration of the channel. The MIDDS returns it.
+  - This command **cannot be delayed**, its effect is immediate.
+  - Fields of the Configuration Channel:
+    - Set the mode of a MIDDS channel:
+      - Input. Reads the value of a given channel in the specified time mark or as quick as possible.
+      - Output. The channel outputs a given value in the specified time mark or as quick as possible.
+      - Monitor. It is an special kind of input. When a change in the voltage of the channel occurs, MIDDS sends a message to the computer with the current value of the channel and its timestamp.
+      - Disabled. The channel enters a high impedance state. No message is accepted or generated for this channel.
+    - Set the signal type of the channel:
+      - TTL.
+      - LVDS.
+    - Specifies the SYNC channel, replacing the previous one.
+  
+    | Field              | Value                                                      | Type   | Byte size | Byte Offset |
+    |--------------------|------------------------------------------------------------|--------|-----------|-------------|
+    | Start character    | `$`                                                        | `char` | 1         | 0           |
+    | Command descriptor | `C`                                                        | `char` | 1         | 1           |
+    | Channel Number     | `00` to `99`                                               | `char` | 2         | 2           |
+    | Channel Mode       | `I`: Input<br>`O`: Output<br>`M`: Monitor<br>`D`: Disabled | `char` | 1         | 4           |
+    | Signal type        | `T`: TTL<br>`L`: LVDS                                      |        | 1         | 5           |
+    | SYNC               | `N`: Not the SYNC<br>`Y`: Use as SYNC                      |        | 1         | 6           |
 
 ## I/O Organization
 
