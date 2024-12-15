@@ -21,29 +21,31 @@
 
 #include "CircularBuffer64.h"
 
-#define HW_TIMER_CHANNEL_COUNT 4
+#define HW_TIMER_CHANNEL_COUNT 15
 
 // Related data and timestamps of a single Hardware Timer.
 typedef struct HWTimerChannel {
-    CircularBuffer64  data;
-    GPIO_TypeDef* gpioPort;
-    uint32_t gpioPin;
-    uint8_t isSYNC;
-} HWTimerChannel;
-
-// The descriptors of a Hardware Timer.
-typedef struct HWTimer {
-    HWTimerChannel      ch[HW_TIMER_CHANNEL_COUNT];
+    CircularBuffer64    data;
     TIM_HandleTypeDef*  htim;
-    uint8_t             counterID;
-} HWTimer;
+    uint32_t            timChannel;     // TIM_CHANNEL_1-4
+    uint32_t            channelMask;    // TIM_FLAG_CC1-4
+    GPIO_TypeDef*       gpioPort;
+    uint32_t            gpioPin;
+    uint8_t             isSYNC;
+
+    uint16_t            channelNumber;             
+    uint32_t            lastPrintTick;
+} HWTimerChannel;
 
 // Collection of all Hardware Timers.
 typedef struct HWTimers {
-    HWTimer htim1;
-    HWTimer htim2;
-    HWTimer htim3;
-    HWTimer htim4;
+    // Collection of all HW timers.
+    HWTimerChannel channels[HW_TIMER_CHANNEL_COUNT];
+
+    TIM_HandleTypeDef*  htim1;
+    TIM_HandleTypeDef*  htim2;
+    TIM_HandleTypeDef*  htim3;
+    TIM_HandleTypeDef*  htim4;
 
     float       frequencySYNC;
     float       dutyCycleSYNC;
@@ -75,6 +77,9 @@ void initHWTimers(HWTimers* htimers,
                   TIM_HandleTypeDef* htim4
                  );
 
+void initHWTimer(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timChannel,
+                 GPIO_TypeDef* gpioPort, uint32_t gpioPin, uint16_t channelNumber, uint8_t isSync);
+
 /**************************************** FUNCTION *************************************************
  * @brief Set the SYNC signal parameters.
  * @param htimers. Pointer to the HWTimers struct containing all data related to timers.
@@ -91,25 +96,25 @@ void startHWTimers(HWTimers* htimers);
 
 /**************************************** FUNCTION *************************************************
  * @brief Clears all buffers of a HWTimer.
- * @param hwTimer. Pointer to the HWTimer to clean.
+ * @param hwTimer. Pointer to the HWTimerChannel to clean.
 ***************************************************************************************************/
-void clearHWTimer(HWTimer* hwTimer);
+void clearHWTimer(HWTimerChannel* hwTimer);
 
 /**************************************** FUNCTION *************************************************
- * @brief Prints the content of a HWTimer to a string.
- * @param hwTimer. Pointer to the HWTimer to print.
+ * @brief Prints the content of a HWTimerChannel to a string.
+ * @param hwTimer. Pointer to the HWTimerChannel to print.
  * @param msg. Pointer to the string to print to.
  * @param maxMsgLen. Length of the msg buffer.
  * @return uint16_t. The number of characters written to msg.
 ***************************************************************************************************/
-uint16_t sprintfHWTimer(HWTimer* hwTimer, char* msg, const uint16_t maxMsgLen);
+uint16_t sprintfHWTimer(HWTimerChannel* hwTimer, char* msg, const uint16_t maxMsgLen);
 
 /**************************************** FUNCTION *************************************************
- * @brief Check if there's enough data to print a HWTimer.
+ * @brief Check if there's enough data to print a HWTimerChannel.
  * @param hwTimer. Pointer to the HWTimer to check.
  * @return uint8_t. 0 if not ready, 1 if ready.
 ***************************************************************************************************/
-uint8_t readyToPrintHWTimer(HWTimer* hwTimer);
+uint8_t readyToPrintHWTimer(HWTimerChannel* hwTimer);
 
 /**************************************** FUNCTION *************************************************
  * @brief Converts a uint64_t number into HEX. This number gets written into a string. The written
@@ -125,22 +130,10 @@ uint16_t snprintf64Hex(char* outMsg, uint16_t msgSize, uint64_t n);
  * @brief Gets the stored value in a TIM capture input register and stores it in the related 
  * HWTimer chanel circular buffer.
  * @param htim. Timer handler that is requesting the ISR.
- * @param channel. The HWTimerChannel pointer related to the ISR.
- * @param channelID. The hardware ID of the channel (TIM_CHANNEL_x, x is 1 to 4).
  * @param addCoarseIncrement. If set, this function is being called from a reset timer event so it
  * checks if the current captured value belongs to the current coarse value or the next one.
 ***************************************************************************************************/
-void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel, 
-                   uint32_t channelID, uint8_t addCoarseIncrement);
-
-/**************************************** FUNCTION *************************************************
- * @brief Checks all capture input channels of a HWTimer. If any of them contains a capture event, 
- * saveTimestamp() gets called for that channel. 
- * @param timer. Timer handler that is requesting the ISR.
- * @param addCoarseIncrement. If set, this function is being called from a reset timer event so it
- * checks if the current captured value belongs to the current coarse value or the next one.
-***************************************************************************************************/
-void checkAllChannelsTimestamps(HWTimer* timer, uint8_t addCoarseIncrement);
+void saveTimestamp(HWTimerChannel* htim, uint8_t addCoarseIncrement);
 
 /**************************************** FUNCTION *************************************************
  * @brief ISR function called on a Capture Input Event (when an edge has triggered a TIM and there's

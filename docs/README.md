@@ -27,7 +27,7 @@ There are two versions of the MIDDS in this project:
 - The **prototype** model: easy to build with a prototype board, based around the **STM32G431** MCU. This was used as a proof of concept. 
 - The **final** model: implemented in a PCB with the **STM32H753ZIT6** MCU in mind, in particular the **NUCLEO-H753ZI** board.
 
-The following sections will be related to the final model. If the reader was interested in knowing more about the prototype model, click [here](docs\PROTO_MIDDS.md).
+The following sections will be related to the final model. If the reader was interested in knowing more about the prototype model, click [here](PROTO_MIDDS.md).
 
 ## Capabilities
 
@@ -124,80 +124,110 @@ The MIDDS protocol has been designed to be as quick and lightweight as possible 
 - Bytes are sent from left to right. In the case of the tables below, from up to bottom.
 - There is no acknowledgement between messages:
   - If the message is not well formatted, the receiving end of the communication should discard it.
-  - If a message is not understood by the MIDDS, it will not answer to it nor will apply any changes to its internal configuration.
+  - A message must be fully correct for the MIDDS to apply it. If even a minor field is not formatted accordingly, MIDDS will not answer to it nor will apply any changes to its internal configuration.
 
 ## Commands
 
-- Input (`I`). Gives the value of a MIDDS *input*, *output* or *monitoring* channel. This read can be instant or delayed until a certain time.
-  - It is asked first by the computer and answered by MIDDS.
-  - Command format. 13 bytes long.
+### Input (`I`)
+Gives the value of a MIDDS *input*, *output* or *monitoring* channel. This read can be instant or delayed until a certain time.
+- It is asked first by the computer and answered by MIDDS.
+- Command format. 13 bytes long.
 
-    | Field              | Value                                | Type   | Byte size | Byte Offset |
-    |--------------------|--------------------------------------|--------|-----------|-------------|
-    | Start character    | `$`                                  | `char` | 1         | 0           |
-    | Command descriptor | `I`                                  | `char` | 1         | 1           |
-    | Channel number     | `00` to `99`                         | `char` | 2         | 2           |
-    | Read value         | PC: do not care<br>MIDDS: `0` or `1` | `char` | 1         | 4           |
-    | Time               | ---                                  | `time` | 8         | 5           |
+| Field              | Value                                | Type   | Byte size | Byte Offset |
+|--------------------|--------------------------------------|--------|-----------|-------------|
+| Start character    | `$`                                  | `char` | 1         | 0           |
+| Command descriptor | `I`                                  | `char` | 1         | 1           |
+| Channel number     | `00` to `99`                         | `char` | 2         | 2           |
+| Read value         | PC: do not care<br>MIDDS: `0` or `1` | `char` | 1         | 4           |
+| Time               | ---                                  | `time` | 8         | 5           |
 
-- Output (`O`). Sets the value of an *output* channel. This output can be instant or delayed until a certain time.
-  - Sent by the computer.
-  - If this command is sent to a *monitoring* or *input* channel it will be discarded.
-  - If the command is sent to a *disabled* channel, it sets its inner output value so that if it is set as an output, that will be its initial value. If not sent, the initial value of the output channel cannot be asserted, unless it is read beforehand with an `I` command.
-  - Command format. 13 bytes long.
+### Output (`O`)
+
+Sets the value of an *output* channel. This output can be instant or delayed until a certain time.
+- Sent by the computer.
+- If this command is sent to a *monitoring* or *input* channel it will be discarded.
+- If the command is sent to a *disabled* channel, it sets its inner output value so that if it is set as an output, that will be its initial value. If not sent, the initial value of the output channel cannot be asserted, unless it is read beforehand with an `I` command.
+- Command format. 13 bytes long.
   
-    | Field              | Value        | Type   | Byte size | Byte Offset |
-    |--------------------|--------------|--------|-----------|-------------|
-    | Start character    | `$`          | `char` | 1         | 0           |
-    | Command descriptor | `O`          | `char` | 1         | 1           |
-    | Channel number     | `00` to `99` | `char` | 2         | 2           |
-    | Write value        | `0` or `1`   | `char` | 1         | 4           |
-    | Time               | ---          | `time` | 8         | 5           |
+| Field              | Value        | Type   | Byte size | Byte Offset |
+|--------------------|--------------|--------|-----------|-------------|
+| Start character    | `$`          | `char` | 1         | 0           |
+| Command descriptor | `O`          | `char` | 1         | 1           |
+| Channel number     | `00` to `99` | `char` | 2         | 2           |
+| Write value        | `0` or `1`   | `char` | 1         | 4           |
+| Time               | ---          | `time` | 8         | 5           |
 
-- Monitor (`M`). 
-  - Sent only by MIDDS.
-  - Command format. 16 bytes long minimum.
+### Monitor (`M`)
 
-    | Field              | Value                                   | Type     | Byte size | Byte Offset |
-    |--------------------|-----------------------------------------|----------|-----------|-------------|
-    | Start character    | `$`                                     | `char`   | 1         | 0           |
-    | Command descriptor | `M`                                     | `char`   | 1         | 1           |
-    | Channel number     | `00` to `99`                            | `char`   | 2         | 2           |
-    | Number of samples  | `0000` to `9999`                        | `char`   | 4         | 4           |
-    | `#n` sample        | *See below*                             | `sample` | 1         | 8 + `#n`*8  |
+Used to send multiple timestamps of *monitoring* inputs/outputs. This message can bundle up to 9999
+timestamps.
+- Sent only by MIDDS.
+- Command format. 16 bytes long minimum.
+
+| Field              | Value                                   | Type     | Byte size | Byte Offset |
+|--------------------|-----------------------------------------|----------|-----------|-------------|
+| Start character    | `$`                                     | `char`   | 1         | 0           |
+| Command descriptor | `M`                                     | `char`   | 1         | 1           |
+| Channel number     | `00` to `99`                            | `char`   | 2         | 2           |
+| Number of samples  | `0001` to `9999`                        | `char`   | 4         | 4           |
+| `#n` sample        | *See below*                             | `sample` | 8         | 8 + `#n`*8  |
 
   A `sample` is a `time` variable that has been bit-shifted one place to the left and ORed with the type of edge that triggered the sample:
   - Falling edge: `0`
   - Rising edge: `1`
   
-- Channel configuration (`C`). Sets the configuration of a channel of the MIDDS.
-  - Can only be sent by the computer. It can be a:
-    - Write configuration. Overrides the previous configuration of the channel.
-    - Read configuration. Asks the MIDDS for the current configuration of the channel. The MIDDS returns it.
-  - This command **cannot be delayed**, its effect is immediate.
-  - Fields of the Configuration Channel:
-    - Set the mode of a MIDDS channel:
-      - Input. Reads the value of a given channel in the specified time mark or as quick as possible.
-      - Output. The channel outputs a given value in the specified time mark or as quick as possible.
-      - Monitor. It is an special kind of input. When a change in the voltage of the channel occurs, MIDDS sends a message to the computer with the current value of the channel and its timestamp.
-      - Disabled. The channel enters a high impedance state. No message is accepted or generated for this channel.
-    - Set the signal type of the channel:
-      - TTL.
-      - LVDS.
-    - Specifies the SYNC channel, replacing the previous one.
+### Settings (`S`)
+
+The settings command is used to change the configuration of the MIDDS. All settings commands must start with `$S` plus another letter, which specifies the type of setting is being commanded.
+
+#### Channel Settings (`SC`)
+
+Sets the configuration of a channel of the MIDDS.
+- Can only be initially sent by the computer.
+- This command can act as:
+  - Write configuration. Overrides the previous configuration of the channel.
+  - Read configuration. Asks the MIDDS for the current configuration of the channel. The MIDDS returns it.
+- This command **cannot be delayed**, its effect is immediate.
+- Fields of the Configuration Channel:
+  - Set the mode of a MIDDS channel:
+    - **Input**. Reads the value of a given channel in the specified time mark or as quick as possible.
+    - **Output**. The channel outputs a given value in the specified time mark or as quick as possible.
+    - **Monitoring**. It is an special kind of input. When a change in the voltage of the channel occurs, MIDDS sends a message to the computer with the current value of the channel and its timestamp.
+    - **Disabled**. The channel enters a high impedance state. No message is accepted or generated for this channel.
+  - Set the signal type of the channel:
+    - **TTL**.
+    - **LVDS**.
+  - Specifies the SYNC channel, replacing the previous one. The SYNC channel can only be set as either *Input* or *Monitor* (on either one of the three available edges). If set as *Input*, the user may sporadically read the current value of the SYNC signal. If set as *Monitor*, the user will automatically get those reading on the corresponding edge it has set to monitor.
+- Command format. 9 bytes long.
   
-    | Field              | Value                                                      | Type   | Byte size | Byte Offset |
-    |--------------------|------------------------------------------------------------|--------|-----------|-------------|
-    | Start character    | `$`                                                        | `char` | 1         | 0           |
-    | Command descriptor | `C`                                                        | `char` | 1         | 1           |
-    | Channel Number     | `00` to `99`                                               | `char` | 2         | 2           |
-    | Channel Mode       | `I`: Input<br>`O`: Output<br>`M`: Monitor<br>`D`: Disabled | `char` | 1         | 4           |
-    | Signal type        | `T`: TTL<br>`L`: LVDS                                      |        | 1         | 5           |
-    | SYNC               | `N`: Not the SYNC<br>`Y`: Use as SYNC                      |        | 1         | 6           |
+| Field                 | Value                                                      | Type   | Byte size | Byte Offset |
+|-----------------------|------------------------------------------------------------|--------|-----------|-------------|
+| Start character       | `$`                                                        | `char` | 1         | 0           |
+| Command descriptor    | `S`                                                        | `char` | 1         | 1           |
+| Subcommand descriptor | `C`                                                        | `char` | 1         | 2           |
+| Channel Number        | `00` to `99`                                               | `char` | 2         | 3           |
+| Channel Mode          | `IN`: Input<br>`OU`: Output<br>`MR`: Monitor Rising edges<br>`MF`: Monitor falling edges<br>`MB`: Monitor both edges<br>`DS`: Disabled | `char` | 2         | 5           |
+| Signal type           | `T`: TTL<br>`L`: LVDS                                      | `char` | 1         | 7           |
+| SYNC                  | `N`: Not the SYNC<br>`Y`: Use as SYNC                      | `char` | 1         | 8           |
+
+#### SYNC Settings (`SY`)
+
+This command sets the time of reference for a SYNC pulse, its frequency and duty cycle. As previously noted, the MIDDS' time starts counting from the initialization sequence (if no SYNC is present) or from the first SYNC pulse after the initialization sequence, setting its internal time to zero on this first pulse. With this command, you may set the exact `time` of the previous SYNC rising or falling pulse.
+
+- Command format. 21 bytes long.
+
+| Field                 | Value                    | Type   | Byte size | Byte Offset |
+|-----------------------|--------------------------|--------|-----------|-------------|
+| Start character       | `$`                      | `char` | 1         | 0           |
+| Command descriptor    | `S`                      | `char` | 1         | 1           |
+| Subcommand descriptor | `Y`                      | `char` | 1         | 2           |
+| Frequency             | `00.01` to `99.99` Hz    | `char` | 5         | 3           |
+| Duty cycle            | `00.01` to `99.99` %     | `char` | 5         | 8           |
+| Time                  | ---                      | `time` | 8         | 13          |
 
 ## I/O Organization
 
-In Table 1 it is presented the organization of the GPIOs of the MCU and their respective pin name in the Monitor board. All MCU pins which are used as IO for the Monitor will be **bolded**: differential pins will be called **_DIF_xn_**, and digitals **_DIO_xn_**, where x is the port’s letter of the GPIO and n is a number starting from zero.
+This section's table lists the organization of the GPIOs of the MCU and their respective MIDDS channel name. 
 
 |      | **PORT A**                 |     |      | **PORT B**                 |
 | ---  | ---                        | --- | ---  | ---                        | 
@@ -206,17 +236,17 @@ In Table 1 it is presented the organization of the GPIOs of the MCU and their re
 | PA2  | Ethernet (ETH_MDIO)        | /   | PB2  |                            |
 | PA3  | Ethernet (ETH_COL)         | /   | PB3  | Debugging (TSWO)           |
 | PA4  |                            | /   | PB4  |                            |
-| PA5  |                            | /   | PB5  | HRTIM_E (HRTIM_EEV7)       |
-| PA6  |                            | /   | PB6  | HRTIM_F (HRTIM_EEV8)       |
-| PA7  | Ethernet (ETH_RX_DV)       | /   | PB7  | HRTIM_G (HRTIM_EEV9)       |
+| PA5  | **Ch09** (TIM2_CH1)        | /   | PB5  | **Ch04** (HRTIM_EEV7)      |
+| PA6  | **Ch12** (TIM3_CH1)        | /   | PB6  |                            |
+| PA7  | Ethernet (ETH_RX_DV)       | /   | PB7  |                            |
 | PA8  |                            | /   | PB8  |                            |
 | PA9  |                            | /   | PB9  |                            |
-| PA10 |                            | /   | PB10 | SPI (SPI2_SCK)             |
-| PA11 |                            | /   | PB11 |                            |
-| PA12 |                            | /   | PB12 | SPI (SPI2_NSS)             |
+| PA10 |                            | /   | PB10 | **Ch10** (TIM2_CH3)        |
+| PA11 |                            | /   | PB11 | **Ch11** (TIM2_CH4)        |
+| PA12 | TIM1_ETR                   | /   | PB12 |                            |
 | PA13 | Debugging (SWDIO)          | /   | PB13 |                            |
-| PA14 | Debugging (SWCLK)          | /   | PB14 |                            |
-| PA15 | SPI (TRANSFER)             | /   | PB15 | SPI (SPI2_MOSI)            |
+| PA14 | Debugging (SWCLK)          | /   | PB14 | **Ch21** (TIM12_CH1)       |
+| PA15 |                            | /   | PB15 | **Ch22** (TIM12_CH2)       |
 
 |      | **PORT C**                 |     |      | **PORT D**                 |
 | ---  | ---                        | --- | ---  | ---                        | 
@@ -225,41 +255,41 @@ In Table 1 it is presented the organization of the GPIOs of the MCU and their re
 | PC2  | Ethernet (ETH_TXD2)        | /   | PD2  |                            |
 | PC3  | Ethernet (ETH_TX_CLK)      | /   | PD3  |                            |
 | PC4  | Ethernet (ETH_RXD0)        | /   | PD4  |                            |
-| PC5  | Ethernet (ETH_RXD1)        | /   | PD5  | HRTIM_C (HRTIM_EEV3)       |
-| PC6  |                            | /   | PD6  |                            |
-| PC7  |                            | /   | PD7  |                            |
-| PC8  |                            | /   | PD8  |                            |
-| PC9  |                            | /   | PD9  |                            |
-| PC10 | HRTIM_A (HRTIM_EEV1)       | /   | PD10 |                            |
+| PC5  | Ethernet (ETH_RXD1)        | /   | PD5  | **Ch02** (HRTIM_EEV3)      |
+| PC6  | **Ch20** (TIM8_CH1)        | /   | PD6  |                            |
+| PC7  | **Ch13** (TIM3_CH2)        | /   | PD7  |                            |
+| PC8  | **Ch14** (TIM3_CH3)        | /   | PD8  |                            |
+| PC9  | **Ch15** (TIM3_CH4)        | /   | PD9  |                            |
+| PC10 | **Ch00** (HRTIM_EEV1)      | /   | PD10 |                            |
 | PC11 |                            | /   | PD11 |                            |
-| PC12 | HRTIM_B (HRTIM_EEV2)       | /   | PD12 |                            |
-| PC13 |                            | /   | PD13 |                            |
-| PC14 |                            | /   | PD14 |                            |
-| PC15 |                            | /   | PD15 |                            |
+| PC12 | **Ch01** (HRTIM_EEV2)      | /   | PD12 | **Ch16** (TIM4_CH1)        |
+| PC13 |                            | /   | PD13 | **Ch17** (TIM4_CH2)        |
+| PC14 |                            | /   | PD14 | **Ch18** (TIM4_CH3)        |
+| PC15 |                            | /   | PD15 | **Ch19** (TIM4_CH4)        |
 
 |      | **PORT E**                 |      |      | **PORT F**                 |
 | ---  | ---                        | ---  | ---  | ---                        | 
 | PE0  |                            | /    | PF0  |                            |
-| PE1  |                            | /    | PF1  |                            |
+| PE1  | HRTIM_SCOUT                | /    | PF1  |                            |
 | PE2  | Ethernet (ETH_TXD3)        | /    | PF2  |                            |
 | PE3  |                            | /    | PF3  |                            |
 | PE4  |                            | /    | PF4  |                            |
-| PE5  |                            | /    | PF5  |                            |
-| PE6  |                            | /    | PF6  |                            |
+| PE5  | **Ch23** (TIM15_CH1)       | /    | PF5  |                            |
+| PE6  | **Ch24** (TIM15_CH2)       | /    | PF6  |                            |
 | PE7  |                            | /    | PF7  |                            |
 | PE8  |                            | /    | PF8  |                            |
-| PE9  |                            | /    | PF9  |                            |
+| PE9  | **Ch05** (TIM1_CH1)        | /    | PF9  |                            |
 | PE10 |                            | /    | PF10 |                            |
-| PE11 |                            | /    | PF11 |                            |
-| PE12 |                            | /    | PF12 |                            |
-| PE13 |                            | /    | PF13 |                            |
-| PE14 |                            | /    | PF14 |                            |
+| PE11 | **Ch06** (TIM1_CH2)        | /    | PF11 |                            |
+| PE12 |                            | /    | PF12 | (SPI4_SCK)                 |
+| PE13 | **Ch07** (TIM1_CH3)        | /    | PF13 |                            |
+| PE14 | **Ch08** (TIM1_CH4)        | /    | PF14 | (SPI4_MOSI)                |
 | PE15 |                            | /    | PF15 |                            |
 
 |      | **PORT G**                 |      |      | **PORT H**                 |
 | ---  | ---                        | ---  | ---  | ---                        | 
-| PG0  |                            | /     | PH0  | Clock (RCC_OSC_IN)         |
-| PG1  |                            | /     | PH1  | Clock (RCC_OSC_OUT)        |
+| PG0  |                            | /     | PH0  | Clock (RCC_OSC_IN)        |
+| PG1  |                            | /     | PH1  | Clock (RCC_OSC_OUT)       |
 | PG2  |                            | /     |
 | PG3  |                            | /     |
 | PG4  |                            | /     |
@@ -270,15 +300,17 @@ In Table 1 it is presented the organization of the GPIOs of the MCU and their re
 | PG9  |                            | /     |
 | PG10 |                            | /     |
 | PG11 | Ethernet (ETH_TX_EN)       | /     |
-| PG12 | HRTIM_D (HRTIM_EEV5)       | /     |
+| PG12 | **Ch03** (HRTIM_EEV5)      | /     |
 | PG13 | Ethernet (ETH_TXD0)        | /     |
 | PG14 |                            | /     |
 | PG15 |                            | /     |
 
-Table 1. GPIO Map of the MCU.
-
 _Note that this pinout may be subject to further modification during development._
 
-## Clock proposals
+Therefore, MIDDS channel can be ordered as:
 
-FTS375.
+| Channels     | Associated Timer | Accuracy     |
+|--------------|------------------|--------------|
+| Ch00 ~ Ch04  | HRTIM            | High         |
+| Ch05 ~ Ch24  | TIMx             | Medium       |
+| ---          | Software         | Low          |

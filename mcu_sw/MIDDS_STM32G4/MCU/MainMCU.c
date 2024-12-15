@@ -27,38 +27,25 @@ void initMCU(TIM_HandleTypeDef* htim1,
 
     startHWTimers(&hwTimers);
 
-    // Wait for a second and try to grab any SYNC pulse.
+    // Wait for a few seconds and try to grab any SYNC pulse.
     HAL_Delay(2000);
 
     if(hwTimers.measuredPeriodHighSYNC != 0 || hwTimers.measuredPeriodLowSYNC != 0) {
         // It is using a SYNC pulse, clear all current buffers.
-        clearHWTimer(&hwTimers.htim1);
-        clearHWTimer(&hwTimers.htim2);
-        clearHWTimer(&hwTimers.htim3);
-        clearHWTimer(&hwTimers.htim4);
+        for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
+            clearHWTimer(hwTimers.channels+i);
+        }
     }
 }
 
 void loopMCU() {
     static char outMsg[1024];
     
-    if(readyToPrintHWTimer(&hwTimers.htim1)) {
-        uint16_t msgSize = sprintfHWTimer(&hwTimers.htim1, outMsg, sizeof(outMsg));
-        HAL_UART_Transmit(huart, (uint8_t*) outMsg, msgSize, 1000);
-    } 
+    for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
+        if(readyToPrintHWTimer(hwTimers.channels + i)) {
+            uint16_t msgSize = sprintfHWTimer(hwTimers.channels + i, outMsg, sizeof(outMsg));
+            HAL_UART_Transmit(huart, (uint8_t*) outMsg, msgSize, 1000);
+        } 
+    }
 
-    if(readyToPrintHWTimer(&hwTimers.htim2)) {
-        uint16_t msgSize = sprintfHWTimer(&hwTimers.htim2, outMsg, sizeof(outMsg));
-        HAL_UART_Transmit(huart, (uint8_t*) outMsg, msgSize, 1000);
-    } 
-
-    if(readyToPrintHWTimer(&hwTimers.htim3)) {
-        uint16_t msgSize = sprintfHWTimer(&hwTimers.htim3, outMsg, sizeof(outMsg));
-        HAL_UART_Transmit(huart, (uint8_t*) outMsg, msgSize, 1000);
-    } 
-
-    if(readyToPrintHWTimer(&hwTimers.htim4)) {
-        uint16_t msgSize = sprintfHWTimer(&hwTimers.htim4, outMsg, sizeof(outMsg));
-        HAL_UART_Transmit(huart, (uint8_t*) outMsg, msgSize, 1000);
-    } 
 }

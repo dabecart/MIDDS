@@ -24,92 +24,61 @@ void initHWTimers(HWTimers* htimers, TIM_HandleTypeDef* htim1, TIM_HandleTypeDef
 {
     if(htimers == NULL) return;
 
-    // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    // TIM1 initialization
-    // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    htimers->htim1.htim = htim1;
-    htimers->htim1.counterID = 1;
-    init_cb64(&htimers->htim1.ch[0].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-    init_cb64(&htimers->htim1.ch[1].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-    init_cb64(&htimers->htim1.ch[2].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-    init_cb64(&htimers->htim1.ch[3].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-
-    htimers->htim1.ch[0].gpioPort   = GPIOA;
-    htimers->htim1.ch[0].gpioPin    = GPIO_PIN_8;
-    htimers->htim1.ch[1].gpioPort   = GPIOA;
-    htimers->htim1.ch[1].gpioPin    = GPIO_PIN_9;
-    htimers->htim1.ch[2].gpioPort   = GPIOA;
-    htimers->htim1.ch[2].gpioPin    = GPIO_PIN_10;
-    htimers->htim1.ch[3].gpioPort   = GPIOA;
-    htimers->htim1.ch[3].gpioPin    = GPIO_PIN_11;
-
-    // TODO: Temporary set A8 as the SYNC signal, but this should be modifiable.
-    // Also, be sure that this timer is the first that gets checked if it triggered.
-    htimers->htim1.ch[0].isSYNC = 1;
+    htimers->htim1 = htim1;
+    htimers->htim2 = htim2;
+    htimers->htim3 = htim3;
+    htimers->htim4 = htim4;
 
     // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    // TIM2 initialization
+    // TIMx initialization
     // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    htimers->htim2.htim = htim2;
-    htimers->htim2.counterID = 2;
-    init_cb64(&htimers->htim2.ch[0].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-    init_cb64(&htimers->htim2.ch[1].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-    init_cb64(&htimers->htim2.ch[2].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-    init_cb64(&htimers->htim2.ch[3].data, CIRCULAR_BUFFER_64_MAX_SIZE);
+    HWTimerChannel* currentChannel = htimers->channels;
+    uint16_t channelNumber = 0;
+    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_1, GPIOA,  8, channelNumber++, 1);
+    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_2, GPIOA,  9, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_3, GPIOA, 10, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_4, GPIOA, 11, channelNumber++, 0);
 
-    htimers->htim2.ch[0].gpioPort   = GPIOA;
-    htimers->htim2.ch[0].gpioPin    = GPIO_PIN_0;
-    htimers->htim2.ch[1].gpioPort   = GPIOA;
-    htimers->htim2.ch[1].gpioPin    = GPIO_PIN_1;
-    htimers->htim2.ch[2].gpioPort   = GPIOB;
-    htimers->htim2.ch[2].gpioPin    = GPIO_PIN_10;
-    htimers->htim2.ch[3].gpioPort   = GPIOB;
-    htimers->htim2.ch[3].gpioPin    = GPIO_PIN_11;
+    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_1, GPIOA,  0, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_2, GPIOA,  1, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_3, GPIOB, 10, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_4, GPIOB, 11, channelNumber++, 0);
 
-    // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    // TIM3 initialization
-    // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    htimers->htim3.htim = htim3;
-    htimers->htim3.counterID = 3;
-    init_cb64(&htimers->htim3.ch[0].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-    init_cb64(&htimers->htim3.ch[1].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-    init_cb64(&htimers->htim3.ch[2].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-    init_cb64(&htimers->htim3.ch[3].data, CIRCULAR_BUFFER_64_MAX_SIZE);
+    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_1, GPIOA,  6, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_2, GPIOA,  4, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_3, GPIOB,  0, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_4, GPIOB,  1, channelNumber++, 0);
 
-    htimers->htim3.ch[0].gpioPort   = GPIOA;
-    htimers->htim3.ch[0].gpioPin    = GPIO_PIN_6;
-    htimers->htim3.ch[1].gpioPort   = GPIOA;
-    htimers->htim3.ch[1].gpioPin    = GPIO_PIN_4;
-    htimers->htim3.ch[2].gpioPort   = GPIOB;
-    htimers->htim3.ch[2].gpioPin    = GPIO_PIN_0;
-    htimers->htim3.ch[3].gpioPort   = GPIOB;
-    htimers->htim3.ch[3].gpioPin    = GPIO_PIN_1;
-
-    // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    // TIM4 initialization
-    // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    htimers->htim4.htim = htim4;
-    htimers->htim4.counterID = 4;
-    init_cb64(&htimers->htim4.ch[0].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-    init_cb64(&htimers->htim4.ch[1].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-    // Pin A13 is used for SWD (debug).
-    // init_cb64(&htimers->htim4.ch[2].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-    init_cb64(&htimers->htim4.ch[3].data, CIRCULAR_BUFFER_64_MAX_SIZE);
-
-    htimers->htim4.ch[0].gpioPort   = GPIOB;
-    htimers->htim4.ch[0].gpioPin    = GPIO_PIN_6;
-    htimers->htim4.ch[1].gpioPort   = GPIOA;
-    htimers->htim4.ch[1].gpioPin    = GPIO_PIN_12;
-    // htimers->htim4.ch[2].gpioPort   = GPIOA;
-    // htimers->htim4.ch[2].gpioPin    = GPIO_PIN_13;
-    htimers->htim4.ch[3].gpioPort   = GPIOB;
-    htimers->htim4.ch[3].gpioPin    = GPIO_PIN_9;
+    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_1, GPIOB,  6, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_2, GPIOA, 12, channelNumber++, 0);
+    // Channel 3 of TIM4 associated pin is used as a debug pin.
+    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_4, GPIOB,  9, channelNumber++, 0);
 
     // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
     // SYNC Timer initialization
     // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
     // Initial SYNC signal considered to be 1PPS 50% duty cycle.
     setSyncParameters(htimers, 1.0, 0.5);
+}
+
+void initHWTimer(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timChannel,
+                 GPIO_TypeDef* gpioPort, uint32_t gpioPin, uint16_t channelNumber, uint8_t isSync) {
+    init_cb64(&timCh->data, CIRCULAR_BUFFER_64_MAX_SIZE);
+    timCh->htim = htim;
+    timCh->gpioPort = gpioPort;
+    switch (timChannel) {
+        case TIM_CHANNEL_1: timCh->channelMask = TIM_FLAG_CC1; break;
+        case TIM_CHANNEL_2: timCh->channelMask = TIM_FLAG_CC2; break;
+        case TIM_CHANNEL_3: timCh->channelMask = TIM_FLAG_CC3; break;
+        case TIM_CHANNEL_4: timCh->channelMask = TIM_FLAG_CC4; break;
+        default:    break;
+    }
+
+    timCh->gpioPin = 1UL << gpioPin;
+    timCh->timChannel = timChannel;
+    
+    timCh->channelNumber = channelNumber;
+    timCh->isSYNC = isSync;
 }
 
 void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle) {
@@ -125,92 +94,65 @@ void startHWTimers(HWTimers* htimers) {
         return;
     }
 
-    HAL_TIM_Base_Start_IT(htimers->htim1.htim);
-    HAL_TIM_IC_Start_IT(htimers->htim1.htim, TIM_CHANNEL_1);
-    HAL_TIM_IC_Start_IT(htimers->htim1.htim, TIM_CHANNEL_2);
-    HAL_TIM_IC_Start_IT(htimers->htim1.htim, TIM_CHANNEL_3);
-    HAL_TIM_IC_Start_IT(htimers->htim1.htim, TIM_CHANNEL_4);
+    // First, start all timers and enable their interrupts except the Update ISR.
+    for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
+        HAL_TIM_Base_Start_IT(hwTimers.channels[i].htim);
+        __HAL_TIM_DISABLE_IT(hwTimers.channels[i].htim, TIM_IT_UPDATE);
+        HAL_TIM_IC_Start_IT(hwTimers.channels[i].htim, hwTimers.channels[i].timChannel);
+    }
 
-    HAL_TIM_Base_Start_IT(htimers->htim2.htim);
-    // TIM1 triggers the restart of TIM2, 3 and 4. Therefore, the update can be handled by only 
-    // TIM1.
-    __HAL_TIM_DISABLE_IT(htimers->htim2.htim, TIM_IT_UPDATE);
-    HAL_TIM_IC_Start_IT(htimers->htim2.htim, TIM_CHANNEL_1);
-    HAL_TIM_IC_Start_IT(htimers->htim2.htim, TIM_CHANNEL_2);
-    HAL_TIM_IC_Start_IT(htimers->htim2.htim, TIM_CHANNEL_3);
-    HAL_TIM_IC_Start_IT(htimers->htim2.htim, TIM_CHANNEL_4);
-
-    HAL_TIM_Base_Start_IT(htimers->htim3.htim);
-    __HAL_TIM_DISABLE_IT(htimers->htim3.htim, TIM_IT_UPDATE);
-    HAL_TIM_IC_Start_IT(htimers->htim3.htim, TIM_CHANNEL_1);
-    HAL_TIM_IC_Start_IT(htimers->htim3.htim, TIM_CHANNEL_2);
-    HAL_TIM_IC_Start_IT(htimers->htim3.htim, TIM_CHANNEL_3);
-    HAL_TIM_IC_Start_IT(htimers->htim3.htim, TIM_CHANNEL_4);
-
-    HAL_TIM_Base_Start_IT(htimers->htim4.htim);
-    __HAL_TIM_DISABLE_IT(htimers->htim4.htim, TIM_IT_UPDATE);
-    HAL_TIM_IC_Start_IT(htimers->htim4.htim, TIM_CHANNEL_1);
-    HAL_TIM_IC_Start_IT(htimers->htim4.htim, TIM_CHANNEL_2);
-    // This GPIO is used by SWD (debug).
-    // HAL_TIM_IC_Start_IT(htimers->htim4.htim, TIM_CHANNEL_3);
-    HAL_TIM_IC_Start_IT(htimers->htim4.htim, TIM_CHANNEL_4);
+    // Enable only the Update ISR of the master timer, in the prototype version, that's TIM1.
+    __HAL_TIM_ENABLE_IT(hwTimers.htim1, TIM_IT_UPDATE);
 }
 
-void clearHWTimer(HWTimer* hwTimer) {
-    empty_cb64(&hwTimer->ch[0].data);
-    empty_cb64(&hwTimer->ch[1].data);
-    empty_cb64(&hwTimer->ch[2].data);
-    empty_cb64(&hwTimer->ch[3].data);
+void clearHWTimer(HWTimerChannel* hwTimer) {
+    empty_cb64(&hwTimer->data);
 }
 
-uint8_t readyToPrintHWTimer(HWTimer* hwTimer) {
-    return (hwTimer->ch[0].data.len + hwTimer->ch[1].data.len + 
-            hwTimer->ch[2].data.len + hwTimer->ch[3].data.len   ) > 15;
+uint8_t readyToPrintHWTimer(HWTimerChannel* hwTimer) {
+    return (hwTimer->data.len > 0) &&
+           ((HAL_GetTick() - hwTimer->lastPrintTick) >= MCU_CHANNEL_PRINT_INTERVAL); 
 }
 
-uint16_t sprintfHWTimer(HWTimer* hwTimer, char* outMsg, const uint16_t maxMsgLen) {
+uint16_t sprintfHWTimer(HWTimerChannel* hwTimer, char* outMsg, const uint16_t maxMsgLen) {
+    if(hwTimer->data.len == 0) return 0;
+
     uint16_t msgSize = 0;
-    HWTimerChannel* hwCh = NULL;
     uint32_t currentMessages;
 #if MCU_TX_IN_ASCII
     uint64_t readVal;
 #endif
 
-    for(uint8_t channelIndex = 0; channelIndex < HW_TIMER_CHANNEL_COUNT; channelIndex++) {
-        hwCh = hwTimer->ch + channelIndex;
+    currentMessages = hwTimer->data.len;   // Make it constant at this point.
+    if(currentMessages > 9999) currentMessages = 9999;
+    msgSize += snprintf(outMsg + msgSize, maxMsgLen - msgSize, 
+                        "$M%02d%04ld", hwTimer->channelNumber, currentMessages);
+    // This upper string must be a multiple of eight bytes long (in binary output mode at least).
 
-        if(hwCh->data.len == 0) continue;
-
-        currentMessages = hwCh->data.len;   // Make it constant at this point.
-        if(currentMessages > 99) currentMessages = 99;
-        msgSize += snprintf(outMsg + msgSize, maxMsgLen - msgSize, 
-                            "T%d.%d.%02ld:", hwTimer->counterID, channelIndex, currentMessages);
-        // This upper string must be a multiple of eight bytes long (in binary output mode).
-
-        for(uint8_t countIndex = 0; countIndex < currentMessages; countIndex++) {
-            #if MCU_TX_IN_ASCII
-                pop_cb64(&hwCh->data, &readVal);
-                msgSize += snprintf64Hex(
-                                outMsg + msgSize, 
-                                maxMsgLen - msgSize,
-                                readVal
-                            );
-                if((maxMsgLen - msgSize) <= 17) {
-                    break;
-                }
-            #else
-                pop_cb64(&hwCh->data, (uint64_t*) (outMsg + msgSize));
-                msgSize += 8;
-                if((maxMsgLen - msgSize) <= 8) {
-                    break;
-                }
-            #endif
-        }
+    for(uint8_t countIndex = 0; countIndex < currentMessages; countIndex++) {
         #if MCU_TX_IN_ASCII
-            msgSize += snprintf(outMsg + msgSize, maxMsgLen-msgSize, "\n");
+            pop_cb64(&hwTimer->data, &readVal);
+            msgSize += snprintf64Hex(
+                            outMsg + msgSize, 
+                            maxMsgLen - msgSize,
+                            readVal
+                        );
+            if((maxMsgLen - msgSize) <= 16) {
+                break;
+            }
+        #else
+            pop_cb64(&hwTimer->data, (uint64_t*) (outMsg + msgSize));
+            msgSize += 8;
+            if((maxMsgLen - msgSize) <= 8) {
+                break;
+            }
         #endif
     }
+    #if MCU_TX_IN_ASCII
+        msgSize += snprintf(outMsg + msgSize, maxMsgLen-msgSize, "\n");
+    #endif
 
+    hwTimer->lastPrintTick = HAL_GetTick();
     return msgSize;
 }
 
@@ -229,13 +171,11 @@ inline uint16_t snprintf64Hex(char* outMsg, uint16_t msgSize, uint64_t n) {
         return 0;
     }
 
-    outMsg[0] = 'x';
-    for(uint8_t i = 1; i <= index; i++) {
-        outMsg[i] = temp[index-i]; 
+    for(uint8_t i = 0; i < index; i++) {
+        outMsg[i] = temp[index-1-i]; 
     }
 
-    // Add 1 more for the 'x' on [0].
-    return index + 1;
+    return index;
 }
 
 
@@ -243,18 +183,26 @@ inline uint16_t snprintf64Hex(char* outMsg, uint16_t msgSize, uint64_t n) {
 // TIMER ISR FUNCTIONS
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 
-inline void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel, 
-                          uint32_t channelID, uint8_t addCoarseIncrement) {
-    if(channel->data.len >= channel->data.size || channel->gpioPort == NULL) {
+void saveTimestamp(HWTimerChannel* channel, uint8_t addCoarseIncrement) {
+    if(((channel->htim->Instance->SR & channel->channelMask) == 0) || 
+       ((channel->htim->Instance->DIER & channel->channelMask) == 0))
+    {
+        // If there's no capture input for this channel or is it not enabled, skip it.
         return;
     }
 
-    uint64_t capturedVal = HAL_TIM_ReadCapturedValue(htim, channelID);
+    __HAL_TIM_CLEAR_FLAG(channel->htim, channel->channelMask);
+    if(channel->data.len >= channel->data.size || channel->gpioPort == NULL) {
+        // If there's too much data on the circular buffer, wait until it empties a bit. 
+        return;
+    }
+
+    uint64_t capturedVal = HAL_TIM_ReadCapturedValue(channel->htim, channel->timChannel);
     // If during this function a restart event has ocurred (addCoarseIncrement = 1), then the 
     // captured value may belong to the new coarse which hasn't been updated still. If the captured
     // value is smaller than the current timer, then the captured value belongs to the new coarse
     // counter value (which still hasn't been updated).
-    if(addCoarseIncrement && (capturedVal < __HAL_TIM_GET_COUNTER(htim))){
+    if(addCoarseIncrement && (capturedVal < __HAL_TIM_GET_COUNTER(channel->htim))){
         capturedVal += newCoarse;
     }else {
         capturedVal += coarse;
@@ -270,8 +218,9 @@ inline void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel,
             hwTimers.measuredPeriodHighSYNC = capturedVal - lastSyncTime;
         }
         lastSyncTime = capturedVal;
-        syncPulseCount++;
+
         if(syncPulseCount >= 2) currentSyncState = currentGPIOValue;
+        else                    syncPulseCount++;
     }else if(currentSyncState != 0xFF){
         // Apply SYNC corrections to pins which aren't SYNC.
         // SYNC corrections are an interpolation between the previous HIGH or LOW measured period
@@ -309,48 +258,13 @@ inline void saveTimestamp(TIM_HandleTypeDef* htim, HWTimerChannel* channel,
     push_cb64(&channel->data, capturedVal);
 }
 
-void checkAllChannelsTimestamps(HWTimer* timer, uint8_t addCoarseIncrement) {
-    uint32_t itFlags   = timer->htim->Instance->SR;
-    uint32_t itEnabled = timer->htim->Instance->DIER;
-    if((itFlags & (TIM_FLAG_CC1)) == (TIM_FLAG_CC1) && 
-       ((itEnabled & (TIM_IT_CC1)) == (TIM_IT_CC1))) {
-        __HAL_TIM_CLEAR_FLAG(timer->htim, TIM_FLAG_CC1);
-        saveTimestamp(timer->htim, timer->ch, TIM_CHANNEL_1, addCoarseIncrement);
-    }
-
-    if((itFlags & (TIM_FLAG_CC2)) == (TIM_FLAG_CC2) && 
-      ((itEnabled & (TIM_IT_CC2)) == (TIM_IT_CC2))) {
-        __HAL_TIM_CLEAR_FLAG(timer->htim, TIM_FLAG_CC2);
-        saveTimestamp(timer->htim, timer->ch + 1, TIM_CHANNEL_2, addCoarseIncrement);
-    }
-
-    if((itFlags & (TIM_FLAG_CC3)) == (TIM_FLAG_CC3) && 
-      ((itEnabled & (TIM_IT_CC3)) == (TIM_IT_CC3))) {
-        __HAL_TIM_CLEAR_FLAG(timer->htim, TIM_FLAG_CC3);
-        saveTimestamp(timer->htim, timer->ch + 2, TIM_CHANNEL_3, addCoarseIncrement);
-    }
-
-    if((itFlags & (TIM_FLAG_CC4)) == (TIM_FLAG_CC4) && 
-      ((itEnabled & (TIM_IT_CC4)) == (TIM_IT_CC4))) {
-        __HAL_TIM_CLEAR_FLAG(timer->htim, TIM_FLAG_CC4);
-        saveTimestamp(timer->htim, timer->ch + 3, TIM_CHANNEL_4, addCoarseIncrement);
-    }
-}
-
 void captureInputISR(TIM_HandleTypeDef* htim) {
-    HWTimer* selectedTimer = NULL;
-    if(htim->Instance == hwTimers.htim1.htim->Instance) {
-        selectedTimer = &hwTimers.htim1;
-    }else if(htim->Instance == hwTimers.htim2.htim->Instance) {
-        selectedTimer = &hwTimers.htim2;
-    }else if(htim->Instance == hwTimers.htim3.htim->Instance) {
-        selectedTimer = &hwTimers.htim3;
-    }else if(htim->Instance == hwTimers.htim4.htim->Instance) {
-        selectedTimer = &hwTimers.htim4;
-    }
-    if(selectedTimer == NULL) return;
+    for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
+        if(htim->Instance != hwTimers.channels[i].htim->Instance) continue;
 
-    checkAllChannelsTimestamps(selectedTimer, 0);
+        // Don't add the coarse increment. That's only done when a timer update has occurred.
+        saveTimestamp(hwTimers.channels+i, 0);
+    }
 }
 
 void restartMasterTimerISR(TIM_HandleTypeDef* htim) {
@@ -369,10 +283,9 @@ void restartMasterTimerISR(TIM_HandleTypeDef* htim) {
     // Before adding the coarse, check if there are any pending Capture Inputs on the timer 
     // channels. If there are, save them but take into account that an clock reset has happened 
     // and the captured value may pertain to the new coarse, which still hasn't been incremented.
-    checkAllChannelsTimestamps(&hwTimers.htim1, 1);
-    checkAllChannelsTimestamps(&hwTimers.htim2, 1);
-    checkAllChannelsTimestamps(&hwTimers.htim3, 1);
-    checkAllChannelsTimestamps(&hwTimers.htim4, 1);
+    for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
+        saveTimestamp(hwTimers.channels+i, 1);
+    }
     
     // After all channels have been updated, modify the coarse.
     coarse = newCoarse;

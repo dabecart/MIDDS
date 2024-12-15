@@ -25,7 +25,7 @@ maxPointsInPlot = 15000
 applyFilter = True
 N_filter = 4
 
-deltaMicrosecond = 1e6/clkFreq
+deltaNanoseconds = 1e9/clkFreq
 
 # Taken from https://gist.github.com/adewes/5884820
 def getRandomColor(pastel_factor = 0.5):
@@ -72,27 +72,27 @@ def plotCSV(fileName, ax, graphColor):
         # rising edge, the delta will be for a low interval.
         highInterval = (data & 1) == 0
 
-        data = (data >> 1) * deltaMicrosecond
-        deltas = data[1:] - data[:-1]
+        data = (data >> 1) * deltaNanoseconds
+        freqs = (data[1:] - data[:-1])
 
         # Trim arrays for the deltas.
         data = data[1:]
         highInterval = highInterval[1:]
 
         # If data is too lengthy, reduce it.
-        deltas  = deltas[::max(1,len(deltas)//maxPointsInPlot)]
+        freqs  = freqs[::max(1,len(freqs)//maxPointsInPlot)]
         data    = data[::max(1,len(data)//maxPointsInPlot)]
 
         if applyFilter:
-            deltas = medianFilter(deltas)
+            freqs = medianFilter(freqs)
             data = medianFilter(data)
 
         fileName = os.path.basename(fileName)
-        print(f'{fileName:<15} Count={len(deltas):<10} Avg={np.average(deltas):<10.4} Std={np.std(deltas):<10.4} Max={np.max(deltas):<10.4}')
+        print(f'{fileName:<15} Count={len(freqs):<10} Avg={np.average(freqs):<10.4} Std={np.std(freqs):<10.4} Max={np.max(freqs):<10.4}')
 
-        lpDelta = lpf(deltas, N_lpf)
+        lpDelta = lpf(freqs, N_lpf)
         # X-Axis in seconds.
-        data /= 1e6
+        data /= 1e9
 
         # Calculate the alpha of the plot as the inverse of the density: more dense, less alpha.
         dotDensity = len(data)/(max(data)-min(data))
@@ -103,11 +103,11 @@ def plotCSV(fileName, ax, graphColor):
         #     else:
         #         ax.scatter(x, y, color=graphColor, alpha=min(0.7, 10/dotDensity), marker='v')
 
-        ax.scatter(data, deltas, color=graphColor, alpha=min(0.7, 10/dotDensity))
+        ax.scatter(data, freqs, color=graphColor, alpha=min(0.7, 10/dotDensity))
 
         ax.plot(data, lpDelta, color=[x*darkenFactor for x in graphColor])
         ax.set_xlabel("Time (s)")
-        ax.set_ylabel("Delta (us)")
+        ax.set_ylabel("Delta (ns)")
         ax.set_title(fileName)
         ax.grid(alpha=0.5)
     except Exception as e:
@@ -129,7 +129,7 @@ if __name__ == '__main__':
         print("No files found")
         exit(0)
 
-    print(f'dt = {deltaMicrosecond} us/step')
+    print(f'dt = {deltaNanoseconds} us/step')
 
     colors = []
     for i in range(len(csvFiles)):

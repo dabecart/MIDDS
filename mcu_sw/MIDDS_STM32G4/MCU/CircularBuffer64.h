@@ -16,15 +16,15 @@
 #include <string.h>
 #include <stdint.h>
 
-#define CIRCULAR_BUFFER_64_MAX_SIZE 128
+#define CIRCULAR_BUFFER_64_MAX_SIZE 200
 
 typedef struct 
 {
-    uint64_t    data[CIRCULAR_BUFFER_64_MAX_SIZE]; // Data buffer.
     uint32_t    size;                           // Full size of the buffer.    
     uint32_t    len;                            // Number of bytes to read (stored bytes count).
     uint32_t    head;                           // Index to read from.
     uint32_t    tail;                           // Index to write to.
+    uint64_t    data[CIRCULAR_BUFFER_64_MAX_SIZE]; // Data buffer.
 } CircularBuffer64;
 
 /**************************************** FUNCTION *************************************************

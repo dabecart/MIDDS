@@ -64,107 +64,60 @@ if __name__ == '__main__':
         if serial.in_waiting > 0:
             inputBuffer += serial.read(serial.in_waiting)
             
-            if b'\n' not in inputBuffer:
-                continue
+            while True:
+                lowIndex: int = inputBuffer.find(b'$')
+                if lowIndex < 0: break
 
-            parsedData: list[int]|None = None
-            if decodeInASCII:
-                lowIndex: int = inputBuffer.find(b'\n')
-                message: bytearray = inputBuffer[:lowIndex+1]
-                inputBuffer = inputBuffer[lowIndex+1:]
+                inputBuffer = inputBuffer[lowIndex:]
+                if len(inputBuffer) < 2: break
 
-                if len(message) < 8: 
-                    continue
-
-                if not message.startswith(b'T'):
-                    print("Missing T at the start")
-                    continue
-
-                # Message format: T{counterID}.{channelID}.{countNumber:02}:{data}
-                #                  \              HEADER                  / \DATA/
-                bulk = message[1:].split(b':')
-                header = bulk[0].split(b'.')
-                data = bulk[1]
-
-                if len(header) != 3:
-                    print("Wrong header length")
-                    continue
-
+                parsedData: list[int]|None = None
                 try:
-                    counterID   = int(header[0])
-                    channelID   = int(header[1])
-                    countNumber = int(header[2])
+                    if inputBuffer[1] == ord(b'M'):
+                        if len(inputBuffer) < 8: break
+
+                        # Monitoring message.
+                        channelNumber   = int(inputBuffer[2:4])
+                        sampleCount     = int(inputBuffer[4:8])
+
+                        if decodeInASCII:
+                            if len(inputBuffer) < (8+16*sampleCount): break
+                            # Timestamps are coming in bulks of ASCII hexadecimal numbers.
+                            data        = inputBuffer[8 : 8+sampleCount*16]
+                            parsedData  = [int(data[i*16:(1+1)*16], 16) for i in range(sampleCount)]
+                            # If everything went OK, remove the message from the input buffer.
+                            inputBuffer = inputBuffer[8+sampleCount*16:]
+                        else:
+                            if len(inputBuffer) < (8+8*sampleCount): break
+                            # Timestamps are in binary form, as uint64_t numbers.
+                            data        = inputBuffer[8 : 8+sampleCount*8]
+                            parsedData  = [struct.unpack('<Q', data[i*8:(i + 1)*8])[0] for i in range(sampleCount)]
+                            # If everything went OK, remove the message from the input buffer.
+                            inputBuffer = inputBuffer[8+sampleCount*8:]
+                    else:
+                        raise Exception()
                 except:
-                    print(f"Cannot parse header")
-                    continue
-                
-                if 0 > channelID >= numberOfChannels:
-                    print("Wrong channel ID")
-                    continue
+                    # On exception, discard the '$' at the start. 
+                    inputBuffer = inputBuffer[1:]
 
-                # Start from 1 forward, as the {data} format is x{hex number}x{hex number}
-                parsedData = [int(hexNum, 16) for hexNum in data[1:].split(b'x')]
-                if len(parsedData) != countNumber:
-                    print(message)
-                    print("Data count wrong")
+                if parsedData is None:
                     continue
 
-            else:
-                lowIndex: int = inputBuffer.find(b'T')
-                while(lowIndex != -1):
-                    message: bytearray = inputBuffer[lowIndex:]
+                timChKey: str = f'Ch{channelNumber}'
+                timCh: TimerChannel|None = channels.get(timChKey, None)
+                if timCh is None:
+                    # If the timer save file didn't exist, create it.
+                    channels[timChKey] = TimerChannel(timChKey)
+                    timCh = channels[timChKey]
+                    print(f'Added new timer {timChKey}')
 
-                    if len(message) < 8 \
-                       or message[2] != ord(b'.') or message[4] != ord(b'.') \
-                       or message[7] != ord(b':'):
-                        lowIndex = inputBuffer.find(b'T', lowIndex+1)
-                        continue
+                # The captured values also have the current level of the signal on its LSB.
+                # parsedData = [(x >> 1) for x in parsedData]
 
-                    try:
-                        counterID   = int(chr(message[1]))
-                        channelID   = int(chr(message[3]))
-                        countNumber = int(message[5:7])
-                    except:
-                        lowIndex = inputBuffer.find(b'T', lowIndex+1)
-                        continue
-                    
-                    if 0 > channelID >= numberOfChannels:
-                        print("Wrong channel ID")
-                        lowIndex = inputBuffer.find(b'T', lowIndex+1)
-                        continue
-
-                    data = message[8:(8 + 8*countNumber)]
-
-                    if len(data) != 8*countNumber:
-                        lowIndex = inputBuffer.find(b'T', lowIndex+1)
-                        continue
-                    
-                    # A single data sample is represented by 8 bytes.
-                    parsedData = [struct.unpack('<Q', data[i*8:(i + 1)*8])[0] for i in range(countNumber)]
-
-                    # If this point was reached, the input buffer can be cleansed from this previous 
-                    # message.
-                    inputBuffer = inputBuffer[lowIndex + (8 + 8*countNumber):]
-                    break
-
-            if parsedData is None:
-                continue
-
-            timChKey: str = f'T{counterID}.{channelID}'
-            timCh: TimerChannel|None = channels.get(timChKey, None)
-            if timCh is None:
-                # If the timer save file didn't exist, create it.
-                channels[timChKey] = TimerChannel(timChKey)
-                timCh = channels[timChKey]
-                print(f'Added new timer {timChKey}')
-
-            # The captured values also have the current level of the signal on its LSB.
-            # parsedData = [(x >> 1) for x in parsedData]
-
-            timCh.totalCounts += len(parsedData)
-            timCh.lastTx = perf_counter_ns()
-            for hexNum in parsedData:
-                timCh.file.write(f'{hexNum}\n')    
+                timCh.totalCounts += len(parsedData)
+                timCh.lastTx = perf_counter_ns()
+                for hexNum in parsedData:
+                    timCh.file.write(f'{hexNum}\n')    
 
 
     for ch in channels.values():
