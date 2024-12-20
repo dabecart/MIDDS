@@ -1,6 +1,7 @@
 # **************************************************************************************************
 # @file Decoder.py
-# @brief Listens to the serial port, decodes the input and stores it on .csv files.
+# @brief Listens to the serial port, decodes the input and stores the incoming timestamps on 
+# different .csv files, one file per channel.
 #
 # @project   MIDDS
 # @version   1.0

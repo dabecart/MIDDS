@@ -73,8 +73,6 @@ void HAL_MspInit(void)
   __HAL_RCC_SYSCFG_CLK_ENABLE();
 
   /* System interrupt init*/
-  /* PendSV_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(PendSV_IRQn, 15, 0);
 
   /* USER CODE BEGIN MspInit 1 */
 
@@ -149,15 +147,15 @@ void HAL_HRTIM_MspInit(HRTIM_HandleTypeDef* hhrtim)
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
     /* HRTIM1 interrupt Init */
-    HAL_NVIC_SetPriority(HRTIM1_TIMA_IRQn, 5, 0);
+    HAL_NVIC_SetPriority(HRTIM1_TIMA_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(HRTIM1_TIMA_IRQn);
-    HAL_NVIC_SetPriority(HRTIM1_TIMB_IRQn, 5, 0);
+    HAL_NVIC_SetPriority(HRTIM1_TIMB_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(HRTIM1_TIMB_IRQn);
-    HAL_NVIC_SetPriority(HRTIM1_TIMC_IRQn, 5, 0);
+    HAL_NVIC_SetPriority(HRTIM1_TIMC_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(HRTIM1_TIMC_IRQn);
-    HAL_NVIC_SetPriority(HRTIM1_TIMD_IRQn, 5, 0);
+    HAL_NVIC_SetPriority(HRTIM1_TIMD_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(HRTIM1_TIMD_IRQn);
-    HAL_NVIC_SetPriority(HRTIM1_TIME_IRQn, 5, 0);
+    HAL_NVIC_SetPriority(HRTIM1_TIME_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(HRTIM1_TIME_IRQn);
   /* USER CODE BEGIN HRTIM1_MspInit 1 */
 

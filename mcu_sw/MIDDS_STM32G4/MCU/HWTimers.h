@@ -101,30 +101,11 @@ void startHWTimers(HWTimers* htimers);
 void clearHWTimer(HWTimerChannel* hwTimer);
 
 /**************************************** FUNCTION *************************************************
- * @brief Prints the content of a HWTimerChannel to a string.
- * @param hwTimer. Pointer to the HWTimerChannel to print.
- * @param msg. Pointer to the string to print to.
- * @param maxMsgLen. Length of the msg buffer.
- * @return uint16_t. The number of characters written to msg.
-***************************************************************************************************/
-uint16_t sprintfHWTimer(HWTimerChannel* hwTimer, char* msg, const uint16_t maxMsgLen);
-
-/**************************************** FUNCTION *************************************************
  * @brief Check if there's enough data to print a HWTimerChannel.
  * @param hwTimer. Pointer to the HWTimer to check.
  * @return uint8_t. 0 if not ready, 1 if ready.
 ***************************************************************************************************/
 uint8_t readyToPrintHWTimer(HWTimerChannel* hwTimer);
-
-/**************************************** FUNCTION *************************************************
- * @brief Converts a uint64_t number into HEX. This number gets written into a string. The written
- * number will always start with x. If the HEX number exceeds msgSize, nothing gets written.
- * @param outMsg. Buffer to write the HEX number to.
- * @param msgSize. Length of outMsg buffer.
- * @param n. The number to convert into HEX.
- * @return uint16_t. The number of bytes written to outMsg.
-***************************************************************************************************/
-uint16_t snprintf64Hex(char* outMsg, uint16_t msgSize, uint64_t n);
 
 /**************************************** FUNCTION *************************************************
  * @brief Gets the stored value in a TIM capture input register and stores it in the related 

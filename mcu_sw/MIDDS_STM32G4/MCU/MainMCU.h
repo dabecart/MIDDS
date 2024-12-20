@@ -16,6 +16,7 @@
 
 #include "main.h"
 #include "HWTimers.h"
+#include "Comms.h"
 #include "stm32g4xx_hal.h"
 
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv DEFINES vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

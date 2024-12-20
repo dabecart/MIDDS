@@ -43,7 +43,7 @@ void loopMCU() {
     
     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
         if(readyToPrintHWTimer(hwTimers.channels + i)) {
-            uint16_t msgSize = sprintfHWTimer(hwTimers.channels + i, outMsg, sizeof(outMsg));
+            uint16_t msgSize = generateMonitorMessage(hwTimers.channels + i, outMsg, sizeof(outMsg));
             HAL_UART_Transmit(huart, (uint8_t*) outMsg, msgSize, 1000);
         } 
     }

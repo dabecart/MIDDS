@@ -12,7 +12,7 @@
 # **************************************************************************************************
 
 import numpy as np
-import pandas as pd
+from pandas import read_csv
 import matplotlib.pyplot as plt
 import os
 import random
@@ -65,7 +65,7 @@ def medianFilter(x):
 
 def plotCSV(fileName, ax, graphColor):
     try:
-        data = pd.read_csv(fileName).values.astype(np.uint64)
+        data = read_csv(fileName).values.astype(np.uint64)
 
         # Get the LSB. If 1, rising edge; if 0, falling edge. Therefore, for a delta between x1 and 
         # x2, if x2 is a falling edge, this delta will be for a high interval; whilst if x2 is a 
@@ -129,7 +129,7 @@ if __name__ == '__main__':
         print("No files found")
         exit(0)
 
-    print(f'dt = {deltaNanoseconds} us/step')
+    print(f'dt = {deltaNanoseconds} ns/step')
 
     colors = []
     for i in range(len(csvFiles)):
