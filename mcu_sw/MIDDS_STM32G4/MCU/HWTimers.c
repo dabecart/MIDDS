@@ -37,12 +37,12 @@ void initHWTimers(HWTimers* htimers, TIM_HandleTypeDef* htim1, TIM_HandleTypeDef
     initHWTimer(currentChannel++, htim1, TIM_CHANNEL_1, GPIOA,  8, channelNumber++, 1);
     initHWTimer(currentChannel++, htim1, TIM_CHANNEL_2, GPIOA,  9, channelNumber++, 0);
     initHWTimer(currentChannel++, htim1, TIM_CHANNEL_3, GPIOA, 10, channelNumber++, 0);
-    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_4, GPIOA, 11, channelNumber++, 0);
+    // Channel 4 of TIM1 is used with the USB.
 
     initHWTimer(currentChannel++, htim2, TIM_CHANNEL_1, GPIOA,  0, channelNumber++, 0);
     initHWTimer(currentChannel++, htim2, TIM_CHANNEL_2, GPIOA,  1, channelNumber++, 0);
-    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_3, GPIOB, 10, channelNumber++, 0);
-    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_4, GPIOB, 11, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_3, GPIOA,  2, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_4, GPIOA,  3, channelNumber++, 0);
 
     initHWTimer(currentChannel++, htim3, TIM_CHANNEL_1, GPIOA,  6, channelNumber++, 0);
     initHWTimer(currentChannel++, htim3, TIM_CHANNEL_2, GPIOA,  4, channelNumber++, 0);
@@ -50,7 +50,7 @@ void initHWTimers(HWTimers* htimers, TIM_HandleTypeDef* htim1, TIM_HandleTypeDef
     initHWTimer(currentChannel++, htim3, TIM_CHANNEL_4, GPIOB,  1, channelNumber++, 0);
 
     initHWTimer(currentChannel++, htim4, TIM_CHANNEL_1, GPIOB,  6, channelNumber++, 0);
-    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_2, GPIOA, 12, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_2, GPIOB,  7, channelNumber++, 0);
     // Channel 3 of TIM4 associated pin is used as a debug pin.
     initHWTimer(currentChannel++, htim4, TIM_CHANNEL_4, GPIOB,  9, channelNumber++, 0);
 
@@ -64,9 +64,10 @@ void initHWTimers(HWTimers* htimers, TIM_HandleTypeDef* htim1, TIM_HandleTypeDef
 void initHWTimer(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timChannel,
                  GPIO_TypeDef* gpioPort, uint32_t gpioPin, uint16_t channelNumber, uint8_t isSync) {
     init_cb64(&timCh->data, CIRCULAR_BUFFER_64_MAX_SIZE);
+    
     timCh->htim = htim;
-    timCh->gpioPort = gpioPort;
-    switch (timChannel) {
+    timCh->timChannel = timChannel;
+    switch (timCh->timChannel) {
         case TIM_CHANNEL_1: timCh->channelMask = TIM_FLAG_CC1; break;
         case TIM_CHANNEL_2: timCh->channelMask = TIM_FLAG_CC2; break;
         case TIM_CHANNEL_3: timCh->channelMask = TIM_FLAG_CC3; break;
@@ -74,11 +75,12 @@ void initHWTimer(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timCha
         default:    break;
     }
 
+    timCh->gpioPort = gpioPort;
     timCh->gpioPin = 1UL << gpioPin;
-    timCh->timChannel = timChannel;
     
-    timCh->channelNumber = channelNumber;
     timCh->isSYNC = isSync;
+    timCh->channelNumber = channelNumber;
+    timCh->lastPrintTick = 0;
 }
 
 void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle) {
@@ -94,15 +96,21 @@ void startHWTimers(HWTimers* htimers) {
         return;
     }
 
+    // Start base timers.
+    HAL_TIM_Base_Start_IT(hwTimers.htim1);
+    // Enable only the Update ISR of the master timer, in the prototype version, that's TIM1.
+    HAL_TIM_Base_Start_IT(hwTimers.htim2);
+    __HAL_TIM_DISABLE_IT(hwTimers.htim2, TIM_IT_UPDATE);
+    HAL_TIM_Base_Start_IT(hwTimers.htim3);
+    __HAL_TIM_DISABLE_IT(hwTimers.htim3, TIM_IT_UPDATE);
+    HAL_TIM_Base_Start_IT(hwTimers.htim4);
+    __HAL_TIM_DISABLE_IT(hwTimers.htim4, TIM_IT_UPDATE);
+
     // First, start all timers and enable their interrupts except the Update ISR.
     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
-        HAL_TIM_Base_Start_IT(hwTimers.channels[i].htim);
-        __HAL_TIM_DISABLE_IT(hwTimers.channels[i].htim, TIM_IT_UPDATE);
         HAL_TIM_IC_Start_IT(hwTimers.channels[i].htim, hwTimers.channels[i].timChannel);
     }
 
-    // Enable only the Update ISR of the master timer, in the prototype version, that's TIM1.
-    __HAL_TIM_ENABLE_IT(hwTimers.htim1, TIM_IT_UPDATE);
 }
 
 void clearHWTimer(HWTimerChannel* hwTimer) {
@@ -110,15 +118,17 @@ void clearHWTimer(HWTimerChannel* hwTimer) {
 }
 
 uint8_t readyToPrintHWTimer(HWTimerChannel* hwTimer) {
-    return (hwTimer->data.len > 0) &&
-           ((HAL_GetTick() - hwTimer->lastPrintTick) >= MCU_CHANNEL_PRINT_INTERVAL); 
+    return (hwTimer->data.len > 0) && (
+                ((HAL_GetTick() - hwTimer->lastPrintTick) >= MCU_CHANNEL_PRINT_INTERVAL) ||
+                (hwTimer->data.len >= CIRCULAR_BUFFER_64_MAX_SIZE/2)
+            );
 }
 
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 // TIMER ISR FUNCTIONS
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 
-void saveTimestamp(HWTimerChannel* channel, uint8_t addCoarseIncrement) {
+inline void saveTimestamp(HWTimerChannel* channel, uint8_t addCoarseIncrement) {
     if(((channel->htim->Instance->SR & channel->channelMask) == 0) || 
        ((channel->htim->Instance->DIER & channel->channelMask) == 0))
     {
@@ -143,7 +153,7 @@ void saveTimestamp(HWTimerChannel* channel, uint8_t addCoarseIncrement) {
         capturedVal += coarse;
     }
 
-    uint8_t currentGPIOValue = (channel->gpioPort->IDR & channel->gpioPin) != 0;
+    uint64_t currentGPIOValue = (channel->gpioPort->IDR & channel->gpioPin) != 0;
     if(channel->isSYNC) {
         if(currentGPIOValue) {
             // If the current GPIO level is HIGH, that means that the LOW period has just occurred.
@@ -187,6 +197,7 @@ void saveTimestamp(HWTimerChannel* channel, uint8_t addCoarseIncrement) {
             }
         }
     }
+    // TODO: Make currentSyncState = 0xFF if enough time has passed since the last SYNC.
 
     // Move the value to the left one bit. The LSB will signal the current state of the GPIO.
     capturedVal = (capturedVal << 1) | currentGPIOValue;

@@ -24,7 +24,7 @@ It can therefore be used in the following applications:
 ## Hardware versions
 
 There are two versions of the MIDDS in this project: 
-- The **prototype** model: easy to build with a prototype board, based around the **STM32G431** MCU. This was used as a proof of concept. 
+- The **prototype** model: easy to build with a prototype board, based around the **STM32G431** MCU. This is used as a proof of concept. 
 - The **final** model: implemented in a PCB with the **STM32H753ZIT6** MCU in mind, in particular the **NUCLEO-H753ZI** board.
 
 The following sections will be related to the final model. If the reader was interested in knowing more about the prototype model, click [here](PROTO_MIDDS.md).

@@ -11,7 +11,9 @@
         "array": "c",
         "string": "c",
         "string_view": "c",
-        "comms.h": "c"
+        "comms.h": "c",
+        "usbd_cdc_if.h": "c",
+        "usb_device.h": "c"
     },
     "makefile.makefilePath": "Debug\\makefile"
 }

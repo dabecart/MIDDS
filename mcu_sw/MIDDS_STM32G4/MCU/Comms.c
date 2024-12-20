@@ -13,8 +13,8 @@
 #include "Comms.h"
 #include "MainMCU.h"
 
-uint16_t generateMonitorMessage(HWTimerChannel* hwTimer, char* outMsg, const uint16_t maxMsgLen) {
-    if(hwTimer->data.len == 0) return 0;
+uint16_t generateMonitorMessage(HWTimerChannel* hwTimer, uint8_t* outMsg, const uint16_t maxMsgLen){
+    if(hwTimer == NULL || hwTimer->data.len == 0) return 0;
 
     uint16_t msgSize = 0;
     uint32_t currentMessages;
@@ -24,7 +24,7 @@ uint16_t generateMonitorMessage(HWTimerChannel* hwTimer, char* outMsg, const uin
 
     currentMessages = hwTimer->data.len;   // Make it constant at this point.
     if(currentMessages > 9999) currentMessages = 9999;
-    msgSize += snprintf(outMsg + msgSize, maxMsgLen - msgSize, 
+    msgSize += snprintf((char*) (outMsg + msgSize), maxMsgLen - msgSize, 
                         "$M%02d%04ld", hwTimer->channelNumber, currentMessages);
     // This upper string must be a multiple of eight bytes long (in binary output mode at least).
 

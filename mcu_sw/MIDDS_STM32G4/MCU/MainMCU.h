@@ -19,6 +19,9 @@
 #include "Comms.h"
 #include "stm32g4xx_hal.h"
 
+#include "usb_device.h"
+#include "usbd_cdc_if.h"
+
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv DEFINES vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 #define MCU_TX_IN_ASCII 0
 
@@ -32,13 +35,11 @@
  * @param htim2. Defined in main.c.
  * @param htim3. Defined in main.c.
  * @param htim4. Defined in main.c.
- * @param huart2. Defined in main.c.
 ***************************************************************************************************/
 void initMCU(TIM_HandleTypeDef* htim1,
              TIM_HandleTypeDef* htim2, 
              TIM_HandleTypeDef* htim3, 
-             TIM_HandleTypeDef* htim4,
-             UART_HandleTypeDef* huart2);
+             TIM_HandleTypeDef* htim4);
 
 /**************************************** FUNCTION *************************************************
  * @brief Main loop of the MCU.

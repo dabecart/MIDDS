@@ -22,7 +22,7 @@
  * @param maxMsgLen. Length of the msg buffer.
  * @return uint16_t. The number of characters written to msg.
 ***************************************************************************************************/
-uint16_t generateMonitorMessage(HWTimerChannel* hwTimer, char* msg, const uint16_t maxMsgLen);
+uint16_t generateMonitorMessage(HWTimerChannel* hwTimer, uint8_t* msg, const uint16_t maxMsgLen);
 
 /**************************************** FUNCTION *************************************************
  * @brief Converts a uint64_t number into HEX. This number gets written into a string. The written

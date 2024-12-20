@@ -21,7 +21,7 @@
 
 #include "CircularBuffer64.h"
 
-#define HW_TIMER_CHANNEL_COUNT 15
+#define HW_TIMER_CHANNEL_COUNT 14
 
 // Related data and timestamps of a single Hardware Timer.
 typedef struct HWTimerChannel {

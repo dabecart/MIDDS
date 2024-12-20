@@ -44,7 +44,7 @@ class TimerChannel:
 
 if __name__ == '__main__':
     killer = LoopKiller()
-    serial = serial.Serial("COM5", baudrate=921600)
+    serial = serial.Serial("COM6", baudrate=10000000)
     inputBuffer: bytearray = bytearray()
 
     channels: dict[str, TimerChannel] = {}
@@ -80,12 +80,13 @@ if __name__ == '__main__':
                         # Monitoring message.
                         channelNumber   = int(inputBuffer[2:4])
                         sampleCount     = int(inputBuffer[4:8])
+                        # print(inputBuffer[:8+sampleCount*8])
 
                         if decodeInASCII:
                             if len(inputBuffer) < (8+16*sampleCount): break
                             # Timestamps are coming in bulks of ASCII hexadecimal numbers.
                             data        = inputBuffer[8 : 8+sampleCount*16]
-                            parsedData  = [int(data[i*16:(1+1)*16], 16) for i in range(sampleCount)]
+                            parsedData  = [int(data[i*16:(i + 1)*16], 16) for i in range(sampleCount)]
                             # If everything went OK, remove the message from the input buffer.
                             inputBuffer = inputBuffer[8+sampleCount*16:]
                         else:

@@ -14,16 +14,14 @@
 #include "MainMCU.h"
 
 HWTimers hwTimers;
-UART_HandleTypeDef* huart;
+extern USBD_HandleTypeDef hUsbDeviceFS;
 
 void initMCU(TIM_HandleTypeDef* htim1,
              TIM_HandleTypeDef* htim2, 
              TIM_HandleTypeDef* htim3, 
-             TIM_HandleTypeDef* htim4,
-             UART_HandleTypeDef* huart2)
+             TIM_HandleTypeDef* htim4)
 {
     initHWTimers(&hwTimers, htim1, htim2, htim3, htim4);
-    huart = huart2;
 
     startHWTimers(&hwTimers);
 
@@ -36,16 +34,20 @@ void initMCU(TIM_HandleTypeDef* htim1,
             clearHWTimer(hwTimers.channels+i);
         }
     }
+
+    // Wait until the USB gets connected.
+    while(hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED){}
+
 }
 
 void loopMCU() {
-    static char outMsg[1024];
+    static uint8_t outMsg[1024];
     
     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
         if(readyToPrintHWTimer(hwTimers.channels + i)) {
-            uint16_t msgSize = generateMonitorMessage(hwTimers.channels + i, outMsg, sizeof(outMsg));
-            HAL_UART_Transmit(huart, (uint8_t*) outMsg, msgSize, 1000);
-        } 
+            uint16_t msgLen = generateMonitorMessage(hwTimers.channels + i, outMsg, sizeof(outMsg));
+            while(CDC_Transmit_FS(outMsg, msgLen) == USBD_BUSY){}
+        }
     }
 
 }
