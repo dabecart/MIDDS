@@ -5,7 +5,7 @@
 
 ## Overview
 
-The **MIDDS** (hereinafter called the Monitor) is a peripheral board to connect to a computer via Ethernet that adds GPIO capabilities to your software. The Monitor does not only work as a reliable General-Purpose Input/Output but also offers high accuracy timestamping. It accepts both TTL and LVDS signals, in the 0V-5V range, and it has a dedicated input to feed your own SYNC signal to synchronize an external clock source with the Monitor.
+The **MIDDS** (hereinafter called the Monitor) is a peripheral board to connect to a computer via Ethernet that adds GPIO capabilities to your software. The Monitor does not only work as a reliable General-Purpose Input/Output but also offers high accuracy timestamping. It accepts both TTL and LVDS signals, in the 0V-5V range, and it has a dedicated input to feed your own SYNC signal to synchronize an external clock source with the Monitor. It also has a TFT LCD screen that easily displays the current state of the monitor.
 
 The MIDDS solves two problems on the same device:
 
@@ -27,7 +27,7 @@ There are two versions of the MIDDS in this project:
 - The **prototype** model: easy to build with a prototype board, based around the **STM32G431** MCU. This is used as a proof of concept. 
 - The **final** model: implemented in a PCB with the **STM32H753ZIT6** MCU in mind, in particular the **NUCLEO-H753ZI** board.
 
-The following sections will be related to the final model. If the reader was interested in knowing more about the prototype model, click [here](PROTO_MIDDS.md).
+The following sections will be related to the final model. If the reader was interested in knowing more about the prototype model, click [here](\..\PROTO_MIDDS\README.md).
 
 ## Capabilities
 
@@ -225,7 +225,7 @@ This command sets the time of reference for a SYNC pulse, its frequency and duty
 | Duty cycle            | `00.01` to `99.99` %     | `char` | 5         | 8           |
 | Time                  | ---                      | `time` | 8         | 13          |
 
-## I/O Organization
+<!-- ## I/O Organization
 
 This section's table lists the organization of the GPIOs of the MCU and their respective MIDDS channel name. 
 
@@ -313,4 +313,4 @@ Therefore, MIDDS channel can be ordered as:
 |--------------|------------------|--------------|
 | Ch00 ~ Ch04  | HRTIM            | High         |
 | Ch05 ~ Ch24  | TIMx             | Medium       |
-| ---          | Software         | Low          |
+| ---          | Software         | Low          | -->
