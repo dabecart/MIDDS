@@ -24,7 +24,7 @@ It can therefore be used in the following applications:
 - Test and measurement.
 
 ## How it works
-Read more about it [here](docs\README.md)!
+Read more about it [here](/docs/README.md)!
 
 # License
-This project is licensed under MIT License. Read the [LICENSE file](LICENSE).
+This project is licensed under MIT License. Read the [LICENSE file](/LICENSE).
