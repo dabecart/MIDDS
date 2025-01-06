@@ -5,7 +5,9 @@
 
 ## Overview
 
-The **MIDDS** is a peripheral board to connect to a computer via Ethernet that adds GPIO capabilities to your software. The Monitor does not only work as a reliable General-Purpose Input/Output but also offers high accuracy timestamping. It accepts both TTL and LVDS signals, in the 0V-5V range, and it has a dedicated input to feed your own SYNC signal to synchronize an external clock source with the device. It also has a TFT LCD screen that easily displays the current state of the monitor.
+The **MIDDS** is a peripheral board designed to connect to a computer via USB, enhancing your software with timestamped GPIO capabilities. More than just a reliable General-Purpose Input/Output device, it delivers precise and high-accuracy timestamping. Featuring 14 configurable channels, the MIDDS supports TTL or LVDS input and output modes. These channels enable timestamping for both inputs and outputs, with each channel capable of being selected as the SYNC input. This SYNC input can accept a square signal from an external clock source to synchronize the MIDDS's time with the external clock.
+
+For even greater precision, the MIDDS supports an external clock signal as HCLK, which can be connected through an onboard SMA connector. The board also includes a TFT LCD screen for convenient display of the monitor's current state. Additionally, the MIDDS offers 16 extra GPIOs, configurable as digital or analog inputs/outputs. All external connections are ESD-protected.
 
 The MIDDS solves two problems on the same device:
 
