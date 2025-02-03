@@ -5,7 +5,7 @@ There are two versions of the MIDDS in this project:
 - The **prototype** model (called **PROTO MIDDS**): easy to build with a prototype board, based around the **STM32G431** MCU, in particular the [WeActStudio STM32G431 Core Board](https://github.com/WeActStudio/WeActStudio.STM32G431CoreBoard) This was used as a proof of concept for the final model.
 - The **final** model: implemented in a PCB with the **STM32H753ZIT6** MCU in mind, in particular the **NUCLEO-H753ZI** board.
 
-In this file, some of the sections from the [README](docs\README.md) will be applied to the prototype version of the MIDDS. The working principle of the MIDDS and its communication protocol remains unchanged. The main differences between boards will arise from the hardware limitations of the far simpler MCU and the external hardware found on the PCB of the final model.
+In this file, some of the sections from the [README](/docs/README.md) will be applied to the prototype version of the MIDDS. The working principle of the MIDDS and its communication protocol remains unchanged. The main differences between boards will arise from the hardware limitations of the far simpler MCU and the external hardware found on the PCB of the final model.
 
 # Hardware differences between the MIDDS and PROTO MIDDS
 
