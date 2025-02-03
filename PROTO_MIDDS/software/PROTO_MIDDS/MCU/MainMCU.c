@@ -23,6 +23,9 @@ void initMCU(TIM_HandleTypeDef* htim1,
              TIM_HandleTypeDef* htim4,
              SPI_HandleTypeDef* hspi1)
 {
+    ST7735_Init(hspi1);
+    ST7735_FillScreenFast(ST7735_BLACK);
+
     initHWTimers(&hwTimers, htim1, htim2, htim3, htim4);
 
     startHWTimers(&hwTimers);

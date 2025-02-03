@@ -23,6 +23,7 @@
 #include "HWTimers.h"
 #include "Comms.h"
 #include "ChannelController.h"
+#include "ST7735.h"
 
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv DEFINES vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 #define MCU_TX_IN_ASCII 0
