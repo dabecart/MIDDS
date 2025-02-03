@@ -126,7 +126,7 @@ The MIDDS protocol has been designed to be as quick and lightweight as possible 
   - If the message is not well formatted, the receiving end of the communication should discard it.
   - A message must be fully correct for the MIDDS to apply it. If even a minor field is not formatted accordingly, MIDDS will not answer to it nor will apply any changes to its internal configuration.
 
-## Commands
+## Commands/Messages
 
 ### Input (`I`)
 Gives the value of a MIDDS *input*, *output* or *monitoring* channel. This read can be instant or delayed until a certain time.
@@ -224,6 +224,19 @@ This command sets the time of reference for a SYNC pulse, its frequency and duty
 | Frequency             | `00.01` to `99.99` Hz    | `char` | 5         | 3           |
 | Duty cycle            | `00.01` to `99.99` %     | `char` | 5         | 8           |
 | Time                  | ---                      | `time` | 8         | 13          |
+
+#### Error Message
+
+This message is sent by the MIDDS when there's an internal error/warning. The message is delimited 
+by a new line character `\n`.
+
+- Command format. Minimum 3 bytes.
+
+| Field                 | Value                    | Type     | Byte size | Byte Offset |
+|-----------------------|--------------------------|----------|-----------|-------------|
+| Start character       | `$`                      | `char`   | 1         | 0           |
+| Command descriptor    | `E`                      | `char`   | 1         | 1           |
+| Message               | ---                      | `char[]` | n         | 2           |
 
 <!-- ## I/O Organization
 

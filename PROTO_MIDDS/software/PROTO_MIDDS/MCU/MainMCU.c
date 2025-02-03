@@ -14,16 +14,20 @@
 #include "MainMCU.h"
 
 HWTimers hwTimers;
+ChannelController chController;
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
 void initMCU(TIM_HandleTypeDef* htim1,
              TIM_HandleTypeDef* htim2, 
              TIM_HandleTypeDef* htim3, 
-             TIM_HandleTypeDef* htim4)
+             TIM_HandleTypeDef* htim4,
+             SPI_HandleTypeDef* hspi1)
 {
     initHWTimers(&hwTimers, htim1, htim2, htim3, htim4);
 
     startHWTimers(&hwTimers);
+
+    initChannelController(&chController, hspi1);
 
     // Wait for a few seconds and try to grab any SYNC pulse.
     HAL_Delay(2000);

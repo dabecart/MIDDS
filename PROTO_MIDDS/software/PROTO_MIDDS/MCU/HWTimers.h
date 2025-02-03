@@ -108,6 +108,13 @@ void clearHWTimer(HWTimerChannel* hwTimer);
 uint8_t readyToPrintHWTimer(HWTimerChannel* hwTimer);
 
 /**************************************** FUNCTION *************************************************
+ * @brief Enable or disable a HWTimerChannel.
+ * @param hwTimer. Pointer to the HWTimer to enable/disable.
+ * @param enabled. 1 to enable, 0 to disable.
+***************************************************************************************************/
+void setHWTimerEnabled(HWTimerChannel* hwTimer, uint8_t enabled);
+
+/**************************************** FUNCTION *************************************************
  * @brief Gets the stored value in a TIM capture input register and stores it in the related 
  * HWTimer chanel circular buffer.
  * @param htim. Timer handler that is requesting the ISR.

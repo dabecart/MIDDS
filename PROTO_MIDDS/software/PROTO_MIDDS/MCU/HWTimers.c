@@ -35,33 +35,33 @@ void initHWTimers(HWTimers* htimers, TIM_HandleTypeDef* htim1, TIM_HandleTypeDef
     HWTimerChannel* currentChannel = htimers->channels;
     uint16_t channelNumber = 0;
     // Ch 00: TIM3_2
-    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_2, GPIOA,  4, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_2, CH00_GPIO_Port,  CH00_Pin, channelNumber++, 0);
     // Ch 01: TIM3_1
-    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_1, GPIOA,  6, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_1, CH01_GPIO_Port,  CH01_Pin, channelNumber++, 0);
     // Ch 02: TIM3_3
-    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_3, GPIOB,  0, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_3, CH02_GPIO_Port,  CH02_Pin, channelNumber++, 0);
     // Ch 03: TIM3_4
-    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_4, GPIOB,  1, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_4, CH03_GPIO_Port,  CH03_Pin, channelNumber++, 0);
     // Ch 04: TIM1_3
-    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_3, GPIOA, 10, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_3, CH04_GPIO_Port,  CH04_Pin, channelNumber++, 0);
     // Ch 05: TIM1_2
-    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_2, GPIOA,  9, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_2, CH05_GPIO_Port,  CH05_Pin, channelNumber++, 0);
     // Ch 06: TIM1_1
-    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_1, GPIOA,  8, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_1, CH06_GPIO_Port,  CH06_Pin, channelNumber++, 0);
     // Ch 07: TIM4_4
-    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_4, GPIOB,  9, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_4, CH07_GPIO_Port,  CH07_Pin, channelNumber++, 0);
     // Ch 08: TIM4_1
-    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_1, GPIOB,  6, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_1, CH08_GPIO_Port,  CH08_Pin, channelNumber++, 0);
     // Ch 09: TIM4_2
-    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_2, GPIOB,  7, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_2, CH09_GPIO_Port,  CH09_Pin, channelNumber++, 0);
     // Ch 10: TIM2_4
-    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_4, GPIOA,  3, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_4, CH10_GPIO_Port,  CH10_Pin, channelNumber++, 0);
     // Ch 11: TIM2_3
-    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_3, GPIOA,  2, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_3, CH11_GPIO_Port,  CH11_Pin, channelNumber++, 0);
     // Ch 12: TIM2_1
-    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_2, GPIOA,  1, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_2, CH12_GPIO_Port,  CH12_Pin, channelNumber++, 0);
     // Ch 13: TIM2_1
-    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_1, GPIOA,  0, channelNumber++, 0);
+    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_1, CH13_GPIO_Port,  CH13_Pin, channelNumber++, 0);
 
     // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
     // SYNC Timer initialization
@@ -85,7 +85,7 @@ void initHWTimer(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timCha
     }
 
     timCh->gpioPort = gpioPort;
-    timCh->gpioPin = 1UL << gpioPin;
+    timCh->gpioPin = gpioPin;
     
     timCh->isSYNC = isSync;
     timCh->channelNumber = channelNumber;
@@ -131,6 +131,14 @@ uint8_t readyToPrintHWTimer(HWTimerChannel* hwTimer) {
                 ((HAL_GetTick() - hwTimer->lastPrintTick) >= MCU_CHANNEL_PRINT_INTERVAL) ||
                 (hwTimer->data.len >= CIRCULAR_BUFFER_64_MAX_SIZE/2)
             );
+}
+
+void setHWTimerEnabled(HWTimerChannel* hwTimer, uint8_t enabled){
+    if(enabled) {
+        __HAL_TIM_ENABLE_IT(hwTimer->htim, hwTimer->channelMask);
+    }else {
+        __HAL_TIM_DISABLE_IT(hwTimer->htim, hwTimer->channelMask);
+    }
 }
 
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
