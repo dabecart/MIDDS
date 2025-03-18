@@ -14,7 +14,8 @@
         "comms.h": "c",
         "usbd_cdc_if.h": "c",
         "usb_device.h": "c",
-        "stm32g4xx_hal.h": "c"
+        "stm32g4xx_hal.h": "c",
+        "commsprotocol.h": "c"
     },
     "makefile.makefilePath": "Debug\\makefile"
 }

@@ -15,7 +15,6 @@
 
 HWTimers hwTimers;
 ChannelController chController;
-extern USBD_HandleTypeDef hUsbDeviceFS;
 
 void initMCU(TIM_HandleTypeDef* htim1,
              TIM_HandleTypeDef* htim2, 
@@ -23,6 +22,8 @@ void initMCU(TIM_HandleTypeDef* htim1,
              TIM_HandleTypeDef* htim4,
              SPI_HandleTypeDef* hspi1)
 {
+    initComms(WAIT_UNTIL_USB_CONNECTION);
+
     ST7735_Init(hspi1);
     ST7735_FillScreenFast(ST7735_BLACK);
 
@@ -33,7 +34,7 @@ void initMCU(TIM_HandleTypeDef* htim1,
     initChannelController(&chController, hspi1);
 
     // Wait for a few seconds and try to grab any SYNC pulse.
-    HAL_Delay(2000);
+    HAL_Delay(3000);
 
     if(hwTimers.measuredPeriodHighSYNC != 0 || hwTimers.measuredPeriodLowSYNC != 0) {
         // It is using a SYNC pulse, clear all current buffers.
@@ -41,20 +42,21 @@ void initMCU(TIM_HandleTypeDef* htim1,
             clearHWTimer(hwTimers.channels+i);
         }
     }
-
-    // Wait until the USB gets connected.
-    while(hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED){}
-
 }
 
 void loopMCU() {
-    static uint8_t outMsg[1024];
-    
+    // Receive commands and generate the responses.
+    receiveData();
+
+    // Generate the recurrent messages.
+    ChannelMessage tempMsg = {};
     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
         if(readyToPrintHWTimer(hwTimers.channels + i)) {
-            uint16_t msgLen = generateMonitorMessage(hwTimers.channels + i, outMsg, sizeof(outMsg));
-            while(CDC_Transmit_FS(outMsg, msgLen) == USBD_BUSY){}
+            tempMsg.monitor = hwTimers.channels + i;
+            encodeGPIOMessage(GPIO_MSG_MONITOR, tempMsg); 
         }
     }
 
+    // Send the data.
+    sendData();
 }
