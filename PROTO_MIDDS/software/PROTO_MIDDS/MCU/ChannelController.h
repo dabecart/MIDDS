@@ -17,7 +17,7 @@ typedef enum ChannelType {
 
 typedef struct TimerChannel {
     HWTimerChannel* timerHandler;
-    GPIOSignalType  protocol;
+    GPIOSignalType  signalType;
 } TimerChannel;
 
 typedef struct GPIOChannel {
@@ -42,9 +42,9 @@ typedef struct ChannelController {
     SPI_HandleTypeDef* hspi;
 } ChannelController;
 
-void initChannelController(ChannelController* chController, SPI_HandleTypeDef* hspi);
+void initChannelController(ChannelController* chCtrl, SPI_HandleTypeDef* hspi);
 
-void applyChannelsConfiguration(ChannelController* chController);
+void applyChannelsConfiguration(ChannelController* chCtrl);
 
 void initChannelFromGPIO_(Channel* ch, GPIO_TypeDef* gpioPort, uint32_t gpioPin);
 
@@ -57,5 +57,7 @@ void applyTimerChannelConfig_(Channel* ch);
 void applyGPIOChannelConfig_(Channel* ch);
 
 void pushConfigSignalsToShiftRegister_(Channel* ch, uint32_t* shiftRegisterValues);
+
+Channel* getChannelFromNumber(uint32_t channelNumber);
 
 #endif // CHANNEL_CONTROLLER_h

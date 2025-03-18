@@ -12,6 +12,7 @@
 
 #include "HWTimers.h"
 #include "MainMCU.h"
+#include "ChannelController.h"
 
 volatile uint64_t coarse = 0;
 volatile uint64_t newCoarse = 0;
@@ -62,12 +63,6 @@ void initHWTimers(HWTimers* htimers, TIM_HandleTypeDef* htim1, TIM_HandleTypeDef
     initHWTimer(currentChannel++, htim2, TIM_CHANNEL_2, CH12_GPIO_Port,  CH12_Pin, channelNumber++, 0);
     // Ch 13: TIM2_1
     initHWTimer(currentChannel++, htim2, TIM_CHANNEL_1, CH13_GPIO_Port,  CH13_Pin, channelNumber++, 0);
-
-    // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    // SYNC Timer initialization
-    // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-    // Initial SYNC signal considered to be 1PPS 50% duty cycle.
-    setSyncParameters(htimers, 1.0, 0.5);
 }
 
 void initHWTimer(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timChannel,
@@ -92,12 +87,20 @@ void initHWTimer(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timCha
     timCh->lastPrintTick = 0;
 }
 
-void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle) {
+void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle, uint32_t syncChNumber) {
     htimers->frequencySYNC = frequency;
     htimers->dutyCycleSYNC = dutyCycle;
 
     htimers->idealPeriodHighSYNC = MCU_FREQUENCY*dutyCycle/hwTimers.frequencySYNC;
     htimers->idealPeriodLowSYNC  = MCU_FREQUENCY*(1.0 - dutyCycle)/hwTimers.frequencySYNC;
+
+    Channel* syncCh = getChannelFromNumber(syncChNumber);
+    if((syncCh == NULL) || (syncCh->type != CHANNEL_TIMER)) return;
+
+    for(int i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
+        htimers->channels[i].isSYNC = 0;
+    }
+    syncCh->data.timer.timerHandler->isSYNC = 1;
 }
 
 void startHWTimers(HWTimers* htimers) {

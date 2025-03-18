@@ -200,7 +200,7 @@ Sets the configuration of a channel of the MIDDS.
     - **TTL**.
     - **LVDS**.
   - Specifies the SYNC channel, replacing the previous one. The SYNC channel can only be set as either *Input* or *Monitor* (on either one of the three available edges). If set as *Input*, the user may sporadically read the current value of the SYNC signal. If set as *Monitor*, the user will automatically get those reading on the corresponding edge it has set to monitor.
-- Command format. 9 bytes long.
+- Command format. 8 bytes long.
   
 | Field                 | Value                                                      | Type   | Byte size | Byte Offset |
 |-----------------------|------------------------------------------------------------|--------|-----------|-------------|
@@ -210,22 +210,22 @@ Sets the configuration of a channel of the MIDDS.
 | Channel Number        | `00` to `99`                                               | `char` | 2         | 3           |
 | Channel Mode          | `IN`: Input<br>`OU`: Output<br>`MR`: Monitor Rising edges<br>`MF`: Monitor falling edges<br>`MB`: Monitor both edges<br>`DS`: Disabled | `char` | 2         | 5           |
 | Signal type           | `T`: TTL<br>`L`: LVDS                                      | `char` | 1         | 7           |
-| SYNC                  | `N`: Not the SYNC<br>`Y`: Use as SYNC                      | `char` | 1         | 8           |
 
 #### SYNC Settings (`SY`)
 
 This command sets the time of reference for a SYNC pulse, its frequency and duty cycle. As previously noted, the MIDDS' time starts counting from the initialization sequence (if no SYNC is present) or from the first SYNC pulse after the initialization sequence, setting its internal time to zero on this first pulse. With this command, you may set the exact `time` of the previous SYNC rising or falling pulse.
 
-- Command format. 21 bytes long.
+- Command format. 23 bytes long.
 
 | Field                 | Value                    | Type   | Byte size | Byte Offset |
 |-----------------------|--------------------------|--------|-----------|-------------|
 | Start character       | `$`                      | `char` | 1         | 0           |
 | Command descriptor    | `S`                      | `char` | 1         | 1           |
 | Subcommand descriptor | `Y`                      | `char` | 1         | 2           |
-| Frequency             | `00.01` to `99.99` Hz    | `char` | 5         | 3           |
-| Duty cycle            | `00.01` to `99.99` %     | `char` | 5         | 8           |
-| Time                  | ---                      | `time` | 8         | 13          |
+| SYNC Channel Number   | `00` to `99`             | `char` | 2         | 3           |
+| Frequency             | `00.01` to `99.99` Hz    | `char` | 5         | 5           |
+| Duty cycle            | `00.01` to `99.99` %     | `char` | 5         | 10          |
+| Time                  | ---                      | `time` | 8         | 15          |
 
 #### Error Message
 

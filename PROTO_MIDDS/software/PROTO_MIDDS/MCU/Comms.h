@@ -37,14 +37,23 @@ void sendData();
 ***************************************************************************************************/
 uint8_t encodeGPIOMessage(const ChannelMessageType msgType, const ChannelMessage msg);
 
+#define COMMS_DECODE_NOT_ENOUGH_DATA    -1
+#define COMMS_DECODE_ERROR_DECODING     -2
+#define COMMS_DECODE_SYNC_SEQUENCE_NOK  -3
+
 /**************************************** FUNCTION *************************************************
  * @brief Decodes a message from a byte buffer to an struct which gets stored into a Circular
  * Buffer of this class.
  * @param dataBuffer: Where the data is stored.
  * @param ulDataLen: Length of the message.
- * @return 1 if the decoding was successful.
+ * @return If positive, the number of bytes read from the dataBuffer.
+ *         If negative, it should be one of the following:
+ *              - COMMS_DECODE_NOT_ENOUGH_DATA
+ *              - COMMS_DECODE_ERROR_DECODING
+ *              - COMMS_DECODE_ERROR_EXECUTING
+ *              - COMMS_DECODE_SYNC_SEQUENCE_NOK
 ***************************************************************************************************/
-uint8_t decodeGPIOMessage(const uint8_t* dataBuffer, const uint32_t ulDataLen);
+int32_t decodeGPIOMessage(const uint8_t* dataBuffer, const uint32_t ulDataLen);
 
 /**************************************** FUNCTION *************************************************
  * @brief Encodes a message to a byte buffer with a given INPUT data structure.
@@ -131,5 +140,17 @@ uint8_t decodeSettingsSync(const uint8_t* dataBuffer, ChannelSettingsSYNC *decod
 ***************************************************************************************************/
 uint16_t snprintf64Hex(char* outMsg, uint16_t msgSize, uint64_t n);
 #endif
+
+uint8_t executeInputCommand(const ChannelInput* cmdInput);
+
+uint8_t executeOutputCommand(const ChannelOutput* cmdInput);
+
+uint8_t executeFrequencyCommand(const ChannelFrequency* cmdInput);
+
+uint8_t executeChannelSettingsCommand(const ChannelSettingsChannel* cmdInput);
+
+uint8_t executeSyncSettingsCommand(const ChannelSettingsSYNC* cmdInput);
+
+extern CircularBuffer inputBuffer;
 
 #endif // COMMS_h

@@ -15,29 +15,42 @@
 
 #include "stdint.h"
 
-#define GPIO_MSG_SYNC   '$'
+#define COMMS_MSG_SYNC   '$'
 
-#define GPIO_MSG_INPUT_LEN          13
-#define GPIO_MSG_OUTPUT_LEN         13
-#define GPIO_MSG_FREQ_LEN           12
-#define GPIO_MSG_CHANNEL_SETT_LEN   9
-#define GPIO_MSG_SYNC_SETT_LEN      21
+#define COMMS_MSG_INPUT_LEN          13
+#define COMMS_MSG_OUTPUT_LEN         13
+#define COMMS_MSG_FREQ_LEN           12
+#define COMMS_MSG_CHANNEL_SETT_LEN   8
+#define COMMS_MSG_SYNC_SETT_LEN      23
 
-#define GPIO_MSG_INPUT_HEAD         "I"
-#define GPIO_MSG_OUTPUT_HEAD        "O"
-#define GPIO_MSG_FREQ_HEAD          "F"
-#define GPIO_MSG_MONITOR_HEAD       "M"
-#define GPIO_MSG_CHANNEL_SETT_HEAD  "SC"
-#define GPIO_MSG_SYNC_SETT_HEAD     "SY"
-#define GPIO_MSG_ERROR_HEAD         "E"
+#define COMMS_MIN_MSG_LEN            COMMS_MSG_CHANNEL_SETT_LEN
+#define COMMS_MAX_MSG_LEN            COMMS_MSG_SYNC_SETT_LEN
 
-#define GPIO_SETT_CH_INPUT              "IN"
-#define GPIO_SETT_CH_OUTPUT             "OU"
-#define GPIO_SETT_CH_FREQUENCY          "FR"
-#define GPIO_SETT_CH_MONITOR_RISING     "MR"
-#define GPIO_SETT_CH_MONITOR_FALLING    "MF"
-#define GPIO_SETT_CH_MONITOR_BOTH       "MB"
-#define GPIO_SETT_CH_DISABLED           "DS"
+#define COMMS_MSG_INPUT_HEAD         "I"
+#define COMMS_MSG_OUTPUT_HEAD        "O"
+#define COMMS_MSG_FREQ_HEAD          "F"
+#define COMMS_MSG_MONITOR_HEAD       "M"
+#define COMMS_MSG_CHANNEL_SETT_HEAD  "SC"
+#define COMMS_MSG_SYNC_SETT_HEAD     "SY"
+#define COMMS_MSG_ERROR_HEAD         "E"
+
+#define COMMS_SETT_CH_INPUT              "IN"
+#define COMMS_SETT_CH_OUTPUT             "OU"
+#define COMMS_SETT_CH_FREQUENCY          "FR"
+#define COMMS_SETT_CH_MONITOR_RISING     "MR"
+#define COMMS_SETT_CH_MONITOR_FALLING    "MF"
+#define COMMS_SETT_CH_MONITOR_BOTH       "MB"
+#define COMMS_SETT_CH_DISABLED           "DS"
+
+#define COMMS_SYNC_MIN_FREQ         00.01
+#define COMMS_SYNC_MAX_FREQ         99.99
+#define COMMS_SYNC_MIN_DUTY_CYCLE   00.01
+#define COMMS_SYNC_MAX_DUTY_CYCLE   99.99
+
+#define COMMS_ERROR_INVALID_CHANNEL      "RR_INVALID_CHANNEL"
+#define COMMS_ERROR_INVALID_MODE         "RR_INVALID_MODE"
+#define COMMS_ERROR_INVALID_SIGNAL_TYPE  "RR_INVALID_SIGNAL_TYPE"
+#define COMMS_ERROR_SYNC_PARAMS          "RR_SYNC_PARAMS"
 
 // Discrete outputs of each channel.
 typedef enum ChannelValue 
@@ -61,13 +74,6 @@ typedef enum GPIOSignalType
     CHANNEL_SIGNAL_LVDS   = 'L'
 } GPIOSignalType;
 
-// Use the channel as a SYNC signal? Used to generate the timestamps.
-typedef enum GPIOSYNC
-{
-    CHANNEL_SYNC_USED     = 'Y',
-    CHANNEL_SYNC_NOT_USED = 'N'
-} GPIOSYNC;
-
 // Modes in which a channel can operate.
 typedef enum ChannelMode
 {
@@ -88,7 +94,7 @@ typedef struct ChannelInput {
     double          time;
 } ChannelInput;
 
-// Struct of Output messages.
+// Struct of Output messages
 typedef struct ChannelOutput {
     uint8_t         command;
     uint32_t        channel;
@@ -118,16 +124,16 @@ typedef struct ChannelSettingsChannel{
     uint32_t        channel;
     ChannelMode     mode;
     GPIOSignalType  signal;
-    GPIOSYNC        sync;
 } ChannelSettingsChannel;
 
 // Struct of Settings: SYNC messages.
 typedef struct ChannelSettingsSYNC{
-    uint8_t command;
-    uint8_t subCommand;
-    double  frequency;
-    double  dutyCycle;
-    double  time;
+    uint8_t     command;
+    uint8_t     subCommand;
+    uint32_t    channel;
+    double      frequency;
+    double      dutyCycle;
+    double      time;
 } ChannelSettingsSYNC;
 
 // Struct of error messages.
@@ -144,7 +150,7 @@ typedef enum ChannelMessageType
     GPIO_MSG_FREQUENCY,
     GPIO_MSG_MONITOR,
     GPIO_MSG_CHANNEL_SETTINGS,
-    GPIO_MSG_SYNC_SETTINGS,
+    COMMS_MSG_SYNC_SETTINGS,
     GPIO_MSG_ERROR
 } ChannelMessageType;
 

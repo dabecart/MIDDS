@@ -85,8 +85,10 @@ void initHWTimer(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timCha
  * @param htimers. Pointer to the HWTimers struct containing all data related to timers.
  * @param frequency. Frequency of the SYNC signal. 
  * @param dutyCycle. Duty cycle of the SYNC signal.
+ * @param syncChNumber. The SYNC channel number. There can only be one channel set as SYNC. If the
+ * channel number is not valid, the SYNC pin won't change.
 ***************************************************************************************************/
-void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle);
+void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle, uint32_t syncChNumber);
 
 /**************************************** FUNCTION *************************************************
  * @brief Initialize all ISR related to the Hardware Timers.

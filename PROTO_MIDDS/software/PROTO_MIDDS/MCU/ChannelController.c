@@ -1,67 +1,80 @@
 #include "ChannelController.h"
 #include "MainMCU.h"
 
-void initChannelController(ChannelController* chController, SPI_HandleTypeDef* hspi) {
-    if(chController == NULL || hspi == NULL) return;
+void initChannelController(ChannelController* chCtrl, SPI_HandleTypeDef* hspi) {
+    if(chCtrl == NULL || hspi == NULL) return;
     
-    chController->hspi = hspi;
+    chCtrl->hspi = hspi;
 
     // Set the Shift Register Enable off.
     HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_RESET); 
 
-    // Initialize single channels.
+    // Initialize channels.
+    // First channels are timer related and the rest are GPIO based.
     int channelCount;
     for(channelCount = 0; channelCount < CH_CONT_TIMER_COUNT; channelCount++) {
         initChannelFromHWTimer_(
-            &chController->channels[channelCount],  
+            &chCtrl->channels[channelCount],  
             &hwTimers.channels[channelCount]
         );
     }
 
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO00_GPIO_Port, GPIO00_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO01_GPIO_Port, GPIO01_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO02_GPIO_Port, GPIO02_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO03_GPIO_Port, GPIO03_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO04_GPIO_Port, GPIO04_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO05_GPIO_Port, GPIO05_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO06_GPIO_Port, GPIO06_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO07_GPIO_Port, GPIO07_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO08_GPIO_Port, GPIO08_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO09_GPIO_Port, GPIO09_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO10_GPIO_Port, GPIO10_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO11_GPIO_Port, GPIO11_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO12_GPIO_Port, GPIO12_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO13_GPIO_Port, GPIO13_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO14_GPIO_Port, GPIO14_Pin);
-    initChannelFromGPIO_(&chController->channels[channelCount++], GPIO15_GPIO_Port, GPIO15_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO00_GPIO_Port, GPIO00_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO01_GPIO_Port, GPIO01_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO02_GPIO_Port, GPIO02_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO03_GPIO_Port, GPIO03_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO04_GPIO_Port, GPIO04_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO05_GPIO_Port, GPIO05_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO06_GPIO_Port, GPIO06_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO07_GPIO_Port, GPIO07_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO08_GPIO_Port, GPIO08_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO09_GPIO_Port, GPIO09_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO10_GPIO_Port, GPIO10_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO11_GPIO_Port, GPIO11_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO12_GPIO_Port, GPIO12_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO13_GPIO_Port, GPIO13_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO14_GPIO_Port, GPIO14_Pin);
+    initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO15_GPIO_Port, GPIO15_Pin);
 
-    applyChannelsConfiguration(chController);
+    applyChannelsConfiguration(chCtrl);
 }
 
-void applyChannelsConfiguration(ChannelController* chController) {
+void applyChannelsConfiguration(ChannelController* chCtrl) {
     // Disable all HWTimers.
     for(int i = 0; i < CH_COUNT; i++) {
-        if(chController->channels[i].type == CHANNEL_TIMER) {
-            setHWTimerEnabled(chController->channels[i].data.timer.timerHandler, 0);
+        if(chCtrl->channels[i].type == CHANNEL_TIMER) {
+            setHWTimerEnabled(chCtrl->channels[i].data.timer.timerHandler, 0);
         }
+    }
+
+    // Apply the configuration to all individual channels.
+    for(int i = 0; i < CH_COUNT; i++) {
+        applyChannelConfiguration(chCtrl->channels + i);
     }
 
     // Sends the values stored on the configuration of the channels to the Shift Registers that 
     // control the direction of the GPIOs. They are four SR, therefore, 32 bits to generate.
     uint32_t shiftRegisterDataOut = 0;
     for(int i = CH_CONT_TIMER_COUNT-1; i >= 0; i--) {
-        pushConfigSignalsToShiftRegister_(&chController->channels[i], &shiftRegisterDataOut);
+        pushConfigSignalsToShiftRegister_(&chCtrl->channels[i], &shiftRegisterDataOut);
     }
-    HAL_SPI_Transmit(chController->hspi, (uint8_t*) (&shiftRegisterDataOut), sizeof(uint32_t), 1000);
+    HAL_SPI_Transmit(
+        chCtrl->hspi, (uint8_t*) (&shiftRegisterDataOut), sizeof(uint32_t), 1000);
+
+    // Make the SR output its inner content by toggling the ENABLE pin. 
+    HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_RESET); 
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_SET); 
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_RESET); 
 
     // Reenable timers.
     for(int i = 0; i < CH_COUNT; i++) {
-        if(chController->channels[i].type == CHANNEL_TIMER) {
-            setHWTimerEnabled(chController->channels[i].data.timer.timerHandler, 
-                              (chController->channels[i].mode != CHANNEL_DISABLED));
+        if(chCtrl->channels[i].type == CHANNEL_TIMER) {
+            setHWTimerEnabled(chCtrl->channels[i].data.timer.timerHandler, 
+                              (chCtrl->channels[i].mode != CHANNEL_DISABLED));
         }
     }
-
 }
 
 void initChannelFromGPIO_(Channel* ch, GPIO_TypeDef* gpioPort, uint32_t gpioPin) {
@@ -79,7 +92,7 @@ void initChannelFromHWTimer_(Channel* ch, HWTimerChannel* hwTimer) {
     
     TimerChannel* timCh = &ch->data.timer;
     timCh->timerHandler = hwTimer;
-    timCh->protocol = CHANNEL_SIGNAL_TTL;
+    timCh->signalType = CHANNEL_SIGNAL_TTL;
     setHWTimerEnabled(hwTimer, 0);
 }
 
@@ -141,11 +154,16 @@ void pushConfigSignalsToShiftRegister_(Channel* ch, uint32_t* shiftRegisterValue
     }
 
     TimerChannel* timCh = &ch->data.timer;
-    uint8_t RE = ((timCh->protocol == CHANNEL_SIGNAL_TTL) && (ch->mode == CHANNEL_INPUT)) ||
-                 ((timCh->protocol == CHANNEL_SIGNAL_LVDS) && (ch->mode == CHANNEL_OUTPUT));
+    uint8_t RE = ((timCh->signalType == CHANNEL_SIGNAL_TTL) && (ch->mode == CHANNEL_INPUT)) ||
+                 ((timCh->signalType == CHANNEL_SIGNAL_LVDS) && (ch->mode == CHANNEL_OUTPUT));
     
-    uint8_t DE = (timCh->protocol == CHANNEL_SIGNAL_LVDS);
+    uint8_t DE = (timCh->signalType == CHANNEL_SIGNAL_LVDS);
     
     *shiftRegisterValues <<= 2;
     *shiftRegisterValues |= (RE << 1) | DE;
+}
+
+Channel* getChannelFromNumber(uint32_t channelNumber) {
+    if(channelNumber >= CH_COUNT) return NULL;
+    return &chCtrl.channels[channelNumber];
 }

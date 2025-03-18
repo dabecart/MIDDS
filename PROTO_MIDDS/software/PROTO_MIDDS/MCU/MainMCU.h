@@ -53,5 +53,6 @@ void loopMCU();
 
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv EXTERNAL VARIABLES vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 extern HWTimers hwTimers;
+extern ChannelController chCtrl;
 
 #endif // MAIN_MCU_h

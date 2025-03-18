@@ -14,7 +14,7 @@
 #include "MainMCU.h"
 
 HWTimers hwTimers;
-ChannelController chController;
+ChannelController chCtrl;
 
 void initMCU(TIM_HandleTypeDef* htim1,
              TIM_HandleTypeDef* htim2, 
@@ -31,17 +31,17 @@ void initMCU(TIM_HandleTypeDef* htim1,
 
     startHWTimers(&hwTimers);
 
-    initChannelController(&chController, hspi1);
+    initChannelController(&chCtrl, hspi1);
 
-    // Wait for a few seconds and try to grab any SYNC pulse.
-    HAL_Delay(3000);
+    // // Wait for a few seconds and try to grab any SYNC pulse.
+    // HAL_Delay(3000);
 
-    if(hwTimers.measuredPeriodHighSYNC != 0 || hwTimers.measuredPeriodLowSYNC != 0) {
-        // It is using a SYNC pulse, clear all current buffers.
-        for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
-            clearHWTimer(hwTimers.channels+i);
-        }
-    }
+    // if(hwTimers.measuredPeriodHighSYNC != 0 || hwTimers.measuredPeriodLowSYNC != 0) {
+    //     // It is using a SYNC pulse, clear all current buffers.
+    //     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
+    //         clearHWTimer(hwTimers.channels+i);
+    //     }
+    // }
 }
 
 void loopMCU() {
