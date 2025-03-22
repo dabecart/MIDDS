@@ -15,11 +15,12 @@
 
 #include "stdint.h"
 
-#define COMMS_MSG_SYNC   '$'
+#define COMMS_MSG_SYNC              '$'
+#define COMMS_CONNECT_CMD           "$CONN"
 
 #define COMMS_MSG_INPUT_LEN          13
 #define COMMS_MSG_OUTPUT_LEN         13
-#define COMMS_MSG_FREQ_LEN           12
+#define COMMS_MSG_FREQ_LEN           20
 #define COMMS_MSG_CHANNEL_SETT_LEN   8
 #define COMMS_MSG_SYNC_SETT_LEN      23
 
@@ -50,7 +51,11 @@
 #define COMMS_ERROR_INVALID_CHANNEL      "RR_INVALID_CHANNEL"
 #define COMMS_ERROR_INVALID_MODE         "RR_INVALID_MODE"
 #define COMMS_ERROR_INVALID_SIGNAL_TYPE  "RR_INVALID_SIGNAL_TYPE"
+#define COMMS_ERROR_CH_SETT_PARAMS       "RR_CH_SETT_PARAMS"
 #define COMMS_ERROR_SYNC_PARAMS          "RR_SYNC_PARAMS"
+#define COMMS_ERROR_INTERNAL             "RR_INTERNAL"
+
+#define COMMS_ERROR_MAX_LEN         64
 
 // Discrete outputs of each channel.
 typedef enum ChannelValue 
@@ -77,7 +82,7 @@ typedef enum GPIOSignalType
 // Modes in which a channel can operate.
 typedef enum ChannelMode
 {
-    CHANNEL_INPUT,
+    CHANNEL_INPUT = 1,
     CHANNEL_OUTPUT,
     CHANNEL_FREQUENCY,
     CHANNEL_MONITOR_RISING_EDGES,
@@ -115,6 +120,7 @@ typedef struct ChannelFrequency {
     uint8_t     command;
     uint32_t    channel;
     double      frequency;
+    double      time;
 } ChannelFrequency;
 
 // Struct of Settings: Channel messages.
@@ -139,7 +145,7 @@ typedef struct ChannelSettingsSYNC{
 // Struct of error messages.
 typedef struct ChannelError{
     uint8_t command;
-    uint8_t message[256];
+    uint8_t message[COMMS_ERROR_MAX_LEN];
 } ChannelError;
 
 // Enum with all the messages' types.

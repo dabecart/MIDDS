@@ -1,3 +1,15 @@
+/***************************************************************************************************
+ * @file ChannelController.c
+ * @brief Controls the registers to set the configuration of each individual channel.
+ * 
+ * @project MIDDS
+ * @version 1.0
+ * @date    2025-03-22
+ * @author  @dabecart
+ * 
+ * @license This project is licensed under the MIT License - see the LICENSE file for details.
+***************************************************************************************************/
+
 #include "ChannelController.h"
 #include "MainMCU.h"
 
@@ -36,10 +48,6 @@ void initChannelController(ChannelController* chCtrl, SPI_HandleTypeDef* hspi) {
     initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO14_GPIO_Port, GPIO14_Pin);
     initChannelFromGPIO_(&chCtrl->channels[channelCount++], GPIO15_GPIO_Port, GPIO15_Pin);
 
-    applyChannelsConfiguration(chCtrl);
-}
-
-void applyChannelsConfiguration(ChannelController* chCtrl) {
     // Disable all HWTimers.
     for(int i = 0; i < CH_COUNT; i++) {
         if(chCtrl->channels[i].type == CHANNEL_TIMER) {
@@ -52,27 +60,13 @@ void applyChannelsConfiguration(ChannelController* chCtrl) {
         applyChannelConfiguration(chCtrl->channels + i);
     }
 
-    // Sends the values stored on the configuration of the channels to the Shift Registers that 
-    // control the direction of the GPIOs. They are four SR, therefore, 32 bits to generate.
-    uint32_t shiftRegisterDataOut = 0;
-    for(int i = CH_CONT_TIMER_COUNT-1; i >= 0; i--) {
-        pushConfigSignalsToShiftRegister_(&chCtrl->channels[i], &shiftRegisterDataOut);
-    }
-    HAL_SPI_Transmit(
-        chCtrl->hspi, (uint8_t*) (&shiftRegisterDataOut), sizeof(uint32_t), 1000);
-
-    // Make the SR output its inner content by toggling the ENABLE pin. 
-    HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_RESET); 
-    HAL_Delay(1);
-    HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_SET); 
-    HAL_Delay(1);
-    HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_RESET); 
+    setShiftRegisterValues(chCtrl);
 
     // Reenable timers.
     for(int i = 0; i < CH_COUNT; i++) {
         if(chCtrl->channels[i].type == CHANNEL_TIMER) {
             setHWTimerEnabled(chCtrl->channels[i].data.timer.timerHandler, 
-                              (chCtrl->channels[i].mode != CHANNEL_DISABLED));
+                                (chCtrl->channels[i].mode != CHANNEL_DISABLED));
         }
     }
 }
@@ -109,13 +103,19 @@ void applyChannelConfiguration(Channel* ch) {
 void applyTimerChannelConfig_(Channel* ch) {
     if(ch->type != CHANNEL_TIMER) return;
 
+    HWTimerChannel* timCh = ch->data.timer.timerHandler;
+
+    if(ch->mode == CHANNEL_DISABLED) {
+        setHWTimerEnabled(timCh, 0);
+        return;
+    }
+
     // Set the mode of the HW Timers.
     TIM_IC_InitTypeDef sConfigIC = {0};
     sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
     sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
     sConfigIC.ICFilter = 0;
 
-    TimerChannel* timCh = &ch->data.timer;
     if(ch->mode == CHANNEL_MONITOR_RISING_EDGES) {
         sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
     }else if(ch->mode == CHANNEL_MONITOR_FALLING_EDGES) {
@@ -124,11 +124,14 @@ void applyTimerChannelConfig_(Channel* ch) {
         sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_BOTHEDGE;
     }
 
-    if (HAL_TIM_IC_ConfigChannel(timCh->timerHandler->htim,
+    if (HAL_TIM_IC_ConfigChannel(timCh->htim,
                                  &sConfigIC, 
-                                 timCh->timerHandler->timChannel) != HAL_OK) {
+                                 timCh->timChannel) != HAL_OK) {
         // TODO: Handle this...
     }
+
+    // Enable the interruptions on the channel.
+    setHWTimerEnabled(timCh, 1);
 }
 
 void applyGPIOChannelConfig_(Channel* ch) {
@@ -148,19 +151,48 @@ void applyGPIOChannelConfig_(Channel* ch) {
     }
 }
 
-void pushConfigSignalsToShiftRegister_(Channel* ch, uint32_t* shiftRegisterValues) {
-    if(ch->type != CHANNEL_TIMER) {
-        return;
+void setShiftRegisterValues(ChannelController* chCtrl) {
+    // Sends the values stored on the configuration of the channels to the Shift Registers that 
+    // control the direction of the GPIOs. They are four SR, therefore, 32 bits to generate.
+    uint32_t shiftRegisterDataOut = 0;
+    Channel* ch;
+    TimerChannel* timCh;
+    uint8_t RE, DE;
+    for(int i = 0; i < CH_CONT_TIMER_COUNT; i++) {
+        ch = &chCtrl->channels[i];
+        timCh = &ch->data.timer;
+        
+        RE = ((timCh->signalType == CHANNEL_SIGNAL_TTL) && (ch->mode == CHANNEL_INPUT)) ||
+             ((timCh->signalType == CHANNEL_SIGNAL_LVDS) && (ch->mode == CHANNEL_OUTPUT));
+        
+        DE = (timCh->signalType == CHANNEL_SIGNAL_LVDS);
+        
+        shiftRegisterDataOut <<= 2;
+        shiftRegisterDataOut |= (RE << 1) | DE;
     }
 
-    TimerChannel* timCh = &ch->data.timer;
-    uint8_t RE = ((timCh->signalType == CHANNEL_SIGNAL_TTL) && (ch->mode == CHANNEL_INPUT)) ||
-                 ((timCh->signalType == CHANNEL_SIGNAL_LVDS) && (ch->mode == CHANNEL_OUTPUT));
-    
-    uint8_t DE = (timCh->signalType == CHANNEL_SIGNAL_LVDS);
-    
-    *shiftRegisterValues <<= 2;
-    *shiftRegisterValues |= (RE << 1) | DE;
+    // shiftRegisterDataOut holds the data as:
+    // MSB  -------------------- LSB
+    // RE0 DE0 RE1 DE1 ... RE13 DE13
+    // Following the circuit, the shift registers are connected as:
+    // SR0 > SR1 > SR2 > SR3
+    // On SR1 and SR3, the G and H channels are not used, that is:
+    // - Channels  0 to  3 are on SR0.
+    // - Channels  4 to  6 are on SR1.
+    // - Channels  7 to 10 are on SR2.
+    // - Channels 11 to 13 are on SR3.
+    // Bits must be shifted to put "zeros" on those G and H ports.
+    shiftRegisterDataOut = ((shiftRegisterDataOut & 0xFFFC000) << 4) | ((shiftRegisterDataOut & 0x3FFF) << 2);
+
+    HAL_SPI_Transmit(
+        chCtrl->hspi, (uint8_t*) (&shiftRegisterDataOut), sizeof(uint32_t), 1000);
+
+    // Make the SR output its inner content by toggling the ENABLE pin. 
+    HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_RESET); 
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_SET); 
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_RESET); 
 }
 
 Channel* getChannelFromNumber(uint32_t channelNumber) {

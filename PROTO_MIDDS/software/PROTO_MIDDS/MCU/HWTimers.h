@@ -25,7 +25,9 @@
 
 // Related data and timestamps of a single Hardware Timer.
 typedef struct HWTimerChannel {
-    CircularBuffer64    data;
+    uint64_t            riseTimestampNew;
+    uint64_t            riseTimestampPrevious;
+
     TIM_HandleTypeDef*  htim;
     uint32_t            timChannel;     // TIM_CHANNEL_1-4
     uint32_t            channelMask;    // TIM_FLAG_CC1-4
@@ -35,13 +37,12 @@ typedef struct HWTimerChannel {
 
     uint16_t            channelNumber;             
     uint32_t            lastPrintTick;
+
+    CircularBuffer64    data;
 } HWTimerChannel;
 
 // Collection of all Hardware Timers.
 typedef struct HWTimers {
-    // Collection of all HW timers.
-    HWTimerChannel channels[HW_TIMER_CHANNEL_COUNT];
-
     TIM_HandleTypeDef*  htim1;
     TIM_HandleTypeDef*  htim2;
     TIM_HandleTypeDef*  htim3;
@@ -60,6 +61,9 @@ typedef struct HWTimers {
     // Number of increments that the high pulse of SYNC should take. Calculated from the frequency
     // and duty cycle of the SYNC signal.
     uint64_t    idealPeriodLowSYNC;
+
+    // Collection of all HW timers.
+    HWTimerChannel channels[HW_TIMER_CHANNEL_COUNT];
 } HWTimers;
 
 /**************************************** FUNCTION *************************************************
@@ -77,8 +81,17 @@ void initHWTimers(HWTimers* htimers,
                   TIM_HandleTypeDef* htim4
                  );
 
-void initHWTimer(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timChannel,
-                 GPIO_TypeDef* gpioPort, uint32_t gpioPin, uint16_t channelNumber, uint8_t isSync);
+/**************************************** FUNCTION *************************************************
+ * @brief Auxiliary function that inits a single HWTimer channel.
+ * @param timCh. Pointer to the HWTimerChannel struct containing all data related to this timer 
+ * channel. 
+ * @param htim. Handler of the TIMx.
+ * @param htim2. Handler of the TIM2. Defined in main.c.
+ * @param htim3. Handler of the TIM3. Defined in main.c.
+ * @param htim4. Handler of the TIM4. Defined in main.c.
+***************************************************************************************************/
+void initHWTimer_(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timChannel,
+                  GPIO_TypeDef* gpioPort, uint32_t gpioPin, uint16_t channelNumber, uint8_t isSync);
 
 /**************************************** FUNCTION *************************************************
  * @brief Set the SYNC signal parameters.
@@ -116,6 +129,8 @@ uint8_t readyToPrintHWTimer(HWTimerChannel* hwTimer);
 ***************************************************************************************************/
 void setHWTimerEnabled(HWTimerChannel* hwTimer, uint8_t enabled);
 
+double getChannelFrequency(HWTimerChannel* hwTimer);
+
 /**************************************** FUNCTION *************************************************
  * @brief Gets the stored value in a TIM capture input register and stores it in the related 
  * HWTimer chanel circular buffer.
@@ -123,21 +138,21 @@ void setHWTimerEnabled(HWTimerChannel* hwTimer, uint8_t enabled);
  * @param addCoarseIncrement. If set, this function is being called from a reset timer event so it
  * checks if the current captured value belongs to the current coarse value or the next one.
 ***************************************************************************************************/
-void saveTimestamp(HWTimerChannel* htim, uint8_t addCoarseIncrement);
+void saveTimestamp_(HWTimerChannel* htim, uint8_t addCoarseIncrement);
 
 /**************************************** FUNCTION *************************************************
  * @brief ISR function called on a Capture Input Event (when an edge has triggered a TIM and there's
  * a new timestamp to process).
  * @param htim. Timer handler that is requesting the ISR.
 ***************************************************************************************************/
-void captureInputISR(TIM_HandleTypeDef* htim);
+void captureInputISR_(TIM_HandleTypeDef* htim);
 
 /**************************************** FUNCTION *************************************************
  * @brief ISR function called on a Reset Event (when the TIM goes back to 0, either because and 
  * overflow or external reset) of the master timer.
  * @param htim. Timer handler that is requesting the ISR.
 ***************************************************************************************************/
-void restartMasterTimerISR(TIM_HandleTypeDef* htim);
+void restartMasterTimerISR_(TIM_HandleTypeDef* htim);
 
 // Defined in MainMCU.h
 extern HWTimers hwTimers;

@@ -20,12 +20,24 @@
 #include "usb_device.h"
 #include "usbd_cdc_if.h"
 
-#define USB_MAX_DATA_PACKAGE_SIZE 512
+// Size of the USB messaging buffers. Currently set to the maximum allowed by the Circular Buffers.
+#define USB_MAX_DATA_PACKAGE_SIZE CIRCULAR_BUFFER_MAX_SIZE
 
+/**************************************** FUNCTION *************************************************
+ * @brief Start the buffers for communication. 
+ * @param blockUntilConnection: If 1, the program will hold until the COMMS_CONNECT_CMD message is
+ * sent from the computer.
+***************************************************************************************************/
 void initComms(uint8_t blockUntilConnection);
 
+/**************************************** FUNCTION *************************************************
+ * @brief Main function to process the received data from USB. 
+***************************************************************************************************/
 void receiveData();
 
+/**************************************** FUNCTION *************************************************
+ * @brief Main function to send data through the USB. 
+***************************************************************************************************/
 void sendData();
 
 /**************************************** FUNCTION *************************************************
@@ -141,16 +153,48 @@ uint8_t decodeSettingsSync(const uint8_t* dataBuffer, ChannelSettingsSYNC *decod
 uint16_t snprintf64Hex(char* outMsg, uint16_t msgSize, uint64_t n);
 #endif
 
+/**************************************** FUNCTION *************************************************
+ * @brief Executes an INPUT message: generates the response.
+ * @param cmdInput: The message/command to execute.
+ * @return 1 if the message was well executed.
+***************************************************************************************************/
 uint8_t executeInputCommand(const ChannelInput* cmdInput);
 
+/**************************************** FUNCTION *************************************************
+ * @brief Executes an OUTPUT message: sets the GPIO value.
+ * @param cmdInput: The message/command to execute.
+ * @return 1 if the message was well executed.
+***************************************************************************************************/
 uint8_t executeOutputCommand(const ChannelOutput* cmdInput);
 
+/**************************************** FUNCTION *************************************************
+ * @brief Executes a FREQUENCY message: generates the response.
+ * @param cmdInput: The message/command to execute.
+ * @return 1 if the message was well executed.
+***************************************************************************************************/
 uint8_t executeFrequencyCommand(const ChannelFrequency* cmdInput);
 
+/**************************************** FUNCTION *************************************************
+ * @brief Executes a CHANNEL SETTINGS command.
+ * @param cmdInput: The message/command to execute.
+ * @return 1 if the message was well executed.
+***************************************************************************************************/
 uint8_t executeChannelSettingsCommand(const ChannelSettingsChannel* cmdInput);
 
+/**************************************** FUNCTION *************************************************
+ * @brief Executes a SYNC SETTINGS command.
+ * @param cmdInput: The message/command to execute.
+ * @return 1 if the message was well executed.
+***************************************************************************************************/
 uint8_t executeSyncSettingsCommand(const ChannelSettingsSYNC* cmdInput);
 
+/**************************************** FUNCTION *************************************************
+ * @brief Generates and sends an error message.
+ * @param errorMsg: The error message.
+***************************************************************************************************/
+void sendErrorMessage(const char* errorMsg);
+
+/**************************************** EXTERNALS ***********************************************/
 extern CircularBuffer inputBuffer;
 
 #endif // COMMS_h

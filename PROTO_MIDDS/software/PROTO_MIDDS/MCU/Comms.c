@@ -19,14 +19,35 @@ CircularBuffer outputBuffer;
 
 extern USBD_HandleTypeDef hUsbDeviceFS;
 
+// Set to 1 when the USB is connected.
+uint8_t usbConnected = 0;
+
 void initComms(uint8_t blockUntilConnection) {
     init_cb(&inputBuffer, CIRCULAR_BUFFER_MAX_SIZE);
     init_cb(&outputBuffer, CIRCULAR_BUFFER_MAX_SIZE);
 
-    // Wait until the USB gets connected.
-    while(blockUntilConnection && (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED)){}
+    if(blockUntilConnection) {
+        // Wait until the USB gets connected. To connect, send from the computer COMMS_CONNECT_CMD.
+        uint8_t peekChar;
+        int searchIndex = 0;
+        while((hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED) || (!usbConnected)) {
+            if(inputBuffer.len > 0) {
+                pop_cb(&inputBuffer, &peekChar);
+                if(peekChar == COMMS_CONNECT_CMD[searchIndex]) {
+                    searchIndex++;
+                }else {
+                    searchIndex = 0;
+                }
 
-    char* WELCOME_MSG = "PROTO_MIDDS v.0.1\n";
+                if(searchIndex == strlen(COMMS_CONNECT_CMD)) {
+                    usbConnected = 1;
+                }
+            }
+        }
+    }
+
+    // Transmit welcome message. 
+    char* WELCOME_MSG = "Connected to PROTO_MIDDS v.0.1\n";
     while(CDC_Transmit_FS((uint8_t*) WELCOME_MSG, strlen(WELCOME_MSG)) == USBD_BUSY){}
 }
 
@@ -137,28 +158,28 @@ int32_t decodeGPIOMessage(const uint8_t* dataBuffer, const uint32_t dataLen) {
         executeInputCommand(&temp);
     }else if(strncmp(messageID, COMMS_MSG_OUTPUT_HEAD, strlen(COMMS_MSG_OUTPUT_HEAD)) == 0) {
         ChannelOutput temp = {};
-        if(dataLen >= COMMS_MSG_OUTPUT_LEN)             return COMMS_DECODE_NOT_ENOUGH_DATA;
+        if(dataLen < COMMS_MSG_OUTPUT_LEN)              return COMMS_DECODE_NOT_ENOUGH_DATA;
         if(!decodeOutput(dataBuffer, &temp))            return COMMS_DECODE_ERROR_DECODING;
         
         messageLen = COMMS_MSG_OUTPUT_LEN;
         executeOutputCommand(&temp);
     }else if(strncmp(messageID, COMMS_MSG_FREQ_HEAD, strlen(COMMS_MSG_FREQ_HEAD)) == 0) {
         ChannelFrequency temp = {};
-        if(dataLen >= COMMS_MSG_FREQ_LEN)               return COMMS_DECODE_NOT_ENOUGH_DATA;
+        if(dataLen < COMMS_MSG_FREQ_LEN)                return COMMS_DECODE_NOT_ENOUGH_DATA;
         if(!decodeFrequency(dataBuffer, &temp))         return COMMS_DECODE_ERROR_DECODING;
         
         messageLen = COMMS_MSG_FREQ_LEN;
         executeFrequencyCommand(&temp);
     }else if(strncmp(messageID, COMMS_MSG_CHANNEL_SETT_HEAD, strlen(COMMS_MSG_CHANNEL_SETT_HEAD)) == 0) {
         ChannelSettingsChannel temp = {};
-        if(dataLen >= COMMS_MSG_CHANNEL_SETT_LEN)       return COMMS_DECODE_NOT_ENOUGH_DATA;
+        if(dataLen < COMMS_MSG_CHANNEL_SETT_LEN)        return COMMS_DECODE_NOT_ENOUGH_DATA;
         if(!decodeSettingsChannel(dataBuffer, &temp))   return COMMS_DECODE_ERROR_DECODING;
 
         messageLen = COMMS_MSG_CHANNEL_SETT_LEN;
         executeChannelSettingsCommand(&temp);
     }else if(strncmp(messageID, COMMS_MSG_SYNC_SETT_HEAD, strlen(COMMS_MSG_SYNC_SETT_HEAD)) == 0) {
         ChannelSettingsSYNC temp = {};
-        if(dataLen >= COMMS_MSG_SYNC_SETT_LEN)          return COMMS_DECODE_NOT_ENOUGH_DATA;
+        if(dataLen < COMMS_MSG_SYNC_SETT_LEN)           return COMMS_DECODE_NOT_ENOUGH_DATA;
         if(!decodeSettingsSync(dataBuffer, &temp))      return COMMS_DECODE_ERROR_DECODING;
 
         messageLen = COMMS_MSG_SYNC_SETT_LEN;
@@ -226,10 +247,12 @@ uint16_t encodeFrequency(const ChannelFrequency* dataStruct, uint8_t* outBuffer)
     if(dataStruct == NULL || outBuffer == NULL) return 0;
     uint16_t len = sprintf((char*) outBuffer, 
                             "%c%s%02ld", 
-                            COMMS_MSG_SYNC, COMMS_MSG_ERROR_HEAD,
+                            COMMS_MSG_SYNC, COMMS_MSG_FREQ_HEAD,
                             dataStruct->channel);
-    memcpy(outBuffer + len, (uint8_t*) &dataStruct->frequency, sizeof(dataStruct->frequency));
-    return len + sizeof(dataStruct->frequency);
+    memcpy(outBuffer + len, &dataStruct->frequency, sizeof(dataStruct->frequency));
+    len += sizeof(dataStruct->frequency);
+    memcpy(outBuffer + len, &dataStruct->time, sizeof(dataStruct->time));
+    return len + sizeof(dataStruct->time);
 }
 
 uint16_t encodeError(const ChannelError* dataStruct, uint8_t* outBuffer, const uint16_t maxMsgLen) {
@@ -263,6 +286,7 @@ uint8_t decodeFrequency(const uint8_t* dataBuffer, ChannelFrequency *decodedMsg)
 
     decodedMsg->command = COMMS_MSG_FREQ_HEAD[0];
     sscanf((char*) dataBuffer + 2, "%2ld", &decodedMsg->channel);
+    memcpy(&decodedMsg->time, dataBuffer + 12, sizeof(decodedMsg->time));
     return 1;
 }
 
@@ -278,6 +302,9 @@ uint8_t decodeSettingsChannel(const uint8_t* dataBuffer, ChannelSettingsChannel 
         decodedMsg->mode = CHANNEL_INPUT;
     }else if(strncmp(modeIdentifier, COMMS_SETT_CH_OUTPUT, strlen(COMMS_SETT_CH_OUTPUT)) == 0) {
         decodedMsg->mode = CHANNEL_OUTPUT;
+        // TODO: Cannot set channel as output for the moment.
+        sendErrorMessage(COMMS_ERROR_INTERNAL);
+        return 0;
     }else if(strncmp(modeIdentifier, COMMS_SETT_CH_FREQUENCY, strlen(COMMS_SETT_CH_FREQUENCY)) == 0) {
         decodedMsg->mode = CHANNEL_FREQUENCY;
     }else if(strncmp(modeIdentifier, COMMS_SETT_CH_MONITOR_RISING, strlen(COMMS_SETT_CH_MONITOR_RISING)) == 0) {
@@ -289,16 +316,18 @@ uint8_t decodeSettingsChannel(const uint8_t* dataBuffer, ChannelSettingsChannel 
     }else if(strncmp(modeIdentifier, COMMS_SETT_CH_DISABLED, strlen(COMMS_SETT_CH_DISABLED)) == 0) {
         decodedMsg->mode = CHANNEL_DISABLED;
     }else {
-        // TODO: Wrong mode.
+        sendErrorMessage(COMMS_ERROR_CH_SETT_PARAMS);
         return 0;
     }
 
     if(dataBuffer[7] == (uint8_t) CHANNEL_SIGNAL_TTL) {
-        decodedMsg->mode = CHANNEL_SIGNAL_TTL;
+        decodedMsg->signal = CHANNEL_SIGNAL_TTL;
     }else if(dataBuffer[7] == (uint8_t) CHANNEL_SIGNAL_LVDS) {
-        decodedMsg->mode = CHANNEL_SIGNAL_LVDS;
+        decodedMsg->signal = CHANNEL_SIGNAL_LVDS;
     }else {
-        // TODO: Wrong signal identifier.
+        ChannelMessage errorMsg;
+        strcpy((char*) errorMsg.error.message, COMMS_ERROR_CH_SETT_PARAMS);
+        encodeGPIOMessage(GPIO_MSG_ERROR, errorMsg);
         return 0;
     }
 
@@ -338,39 +367,62 @@ inline uint16_t snprintf64Hex(char* outBuffer, uint16_t msgSize, uint64_t n) {
 
 uint8_t executeInputCommand(const ChannelInput* cmdInput) {
     ChannelMessage cmdResponse;
+    Channel* ch = getChannelFromNumber(cmdInput->channel);
 
-    // Is the channel number valid?
-    if(cmdInput->channel >= CH_COUNT) {
-        strcpy((char*) cmdResponse.error.message, COMMS_ERROR_INVALID_CHANNEL);
-        encodeGPIOMessage(GPIO_MSG_ERROR, cmdResponse);
+    if(ch == NULL) {
+        sendErrorMessage(COMMS_ERROR_INVALID_CHANNEL);
+        return 0;
+    }
+
+    // Only if the channel is invalid, return error.
+    if(ch->mode == CHANNEL_DISABLED) {
+        sendErrorMessage(COMMS_ERROR_INVALID_MODE);
         return 0;
     }
     
+    // All channels can be read.
     memcpy(&cmdResponse.input, cmdInput, sizeof(ChannelInput));
-    cmdResponse.input.value = chCtrl.channels[cmdInput->channel].lastValue;
+    ChannelValue readValue;
+    if(ch->type == CHANNEL_TIMER) {
+        if(HAL_GPIO_ReadPin(ch->data.timer.timerHandler->gpioPort, 
+                            ch->data.timer.timerHandler->gpioPin) == GPIO_PIN_SET) {
+            readValue = GPIO_HIGH;
+        }else {
+            readValue = GPIO_LOW;
+        }
+    }else if(ch->type == CHANNEL_GPIO) {
+        if(HAL_GPIO_ReadPin(ch->data.gpio.gpioPort,
+                            ch->data.gpio.gpioPin) == GPIO_PIN_SET) {
+            readValue = GPIO_HIGH;
+        }else {
+            readValue = GPIO_LOW;
+        }
+    }else {
+        sendErrorMessage(COMMS_ERROR_INTERNAL);
+        return 0;
+    }
+
+    cmdResponse.input.value = readValue;
     encodeGPIOMessage(GPIO_MSG_INPUT, cmdResponse);
     return 1;
 }
 
 uint8_t executeOutputCommand(const ChannelOutput* cmdInput) {
-    ChannelMessage cmdResponse;
+    Channel* ch = getChannelFromNumber(cmdInput->channel);
 
     // Is the channel number valid?
-    if(cmdInput->channel >= CH_COUNT) {
-        strcpy((char*) cmdResponse.error.message, COMMS_ERROR_INVALID_CHANNEL);
-        encodeGPIOMessage(GPIO_MSG_ERROR, cmdResponse);
+    if(ch == NULL) {
+        sendErrorMessage(COMMS_ERROR_INVALID_CHANNEL);
         return 0;
     }
 
     // Only output channels can output values.
-    if(chCtrl.channels[cmdInput->channel].mode != CHANNEL_OUTPUT) {
-        strcpy((char*) cmdResponse.error.message, COMMS_ERROR_INVALID_MODE);
-        encodeGPIOMessage(GPIO_MSG_ERROR, cmdResponse);
+    if(ch->mode != CHANNEL_OUTPUT) {
+        sendErrorMessage(COMMS_ERROR_INVALID_MODE);
         return 0;
     }
 
     // Write the value.
-    Channel* ch = getChannelFromNumber(cmdInput->channel);
     if(ch->type == CHANNEL_TIMER) {
         TimerChannel* timerCh = &ch->data.timer;
         if(cmdInput->value == GPIO_LOW) {
@@ -394,51 +446,66 @@ uint8_t executeOutputCommand(const ChannelOutput* cmdInput) {
 }
 
 uint8_t executeFrequencyCommand(const ChannelFrequency* cmdInput) {
-    // TODO
+    ChannelMessage cmdResponse;
+    Channel* ch = getChannelFromNumber(cmdInput->channel);
+
+    if(ch == NULL) {
+        sendErrorMessage(COMMS_ERROR_INVALID_CHANNEL);
+        return 0;
+    }
+
+    // Only if the channel is an output or disabled, return error.
+    if((ch->mode == CHANNEL_DISABLED) || (ch->mode == CHANNEL_OUTPUT)) {
+        sendErrorMessage(COMMS_ERROR_INVALID_MODE);
+        return 0;
+    }
+
+    memcpy(&cmdResponse.frequency, cmdInput, sizeof(ChannelFrequency));
+    if(ch->type == CHANNEL_TIMER) {
+        cmdResponse.frequency.frequency = getChannelFrequency(ch->data.timer.timerHandler);
+    }else {
+        // TODO: Make it so that GPIOs can also return frequency.
+        sendErrorMessage(COMMS_ERROR_INVALID_MODE);
+        return 0;
+    }
+
+    encodeGPIOMessage(GPIO_MSG_FREQUENCY, cmdResponse);
     return 1;
 }
 
 uint8_t executeChannelSettingsCommand(const ChannelSettingsChannel* cmdInput) {
-    ChannelMessage cmdResponse;
+    Channel* ch = getChannelFromNumber(cmdInput->channel);
 
-    // Is the channel number valid?
-    if(cmdInput->channel >= CH_COUNT) {
-        strcpy((char*) cmdResponse.error.message, COMMS_ERROR_INVALID_CHANNEL);
-        encodeGPIOMessage(GPIO_MSG_ERROR, cmdResponse);
+    if(ch == NULL) {
+        sendErrorMessage(COMMS_ERROR_INVALID_CHANNEL);
         return 0;
     }
-
-    Channel* selectedCh = getChannelFromNumber(cmdInput->channel);
 
     // Timer channels can be set to either LVDS or TTL. GPIOs can only be TTL.
-    if((selectedCh->type == CHANNEL_GPIO) && (cmdInput->signal == CHANNEL_SIGNAL_LVDS)) {
-        strcpy((char*) cmdResponse.error.message, COMMS_ERROR_INVALID_SIGNAL_TYPE);
-        encodeGPIOMessage(GPIO_MSG_ERROR, cmdResponse);
+    if((ch->type == CHANNEL_GPIO) && (cmdInput->signal == CHANNEL_SIGNAL_LVDS)) {
+        sendErrorMessage(COMMS_ERROR_INVALID_SIGNAL_TYPE);
         return 0;
     }
 
-    selectedCh->mode = cmdInput->mode;
-    selectedCh->data.timer.signalType = cmdInput->signal;
+    ch->mode = cmdInput->mode;
+    ch->data.timer.signalType = cmdInput->signal;
 
-    applyChannelConfiguration(selectedCh);
+    applyChannelConfiguration(ch);
+    setShiftRegisterValues(&chCtrl);
     return 1;
 }
 
 uint8_t executeSyncSettingsCommand(const ChannelSettingsSYNC* cmdInput) {
-    ChannelMessage cmdResponse;
+    Channel* ch = getChannelFromNumber(cmdInput->channel);
 
-    // Is the channel number valid?
-    if(cmdInput->channel >= CH_COUNT) {
-        strcpy((char*) cmdResponse.error.message, COMMS_ERROR_INVALID_CHANNEL);
-        encodeGPIOMessage(GPIO_MSG_ERROR, cmdResponse);
+    if(ch == NULL) {
+        sendErrorMessage(COMMS_ERROR_INVALID_CHANNEL);
         return 0;
     }
 
     // Only "Timer" channels can be used as SYNC.
-    Channel* selChannel = getChannelFromNumber(cmdInput->channel);
-    if(selChannel->type != CHANNEL_TIMER) {
-        strcpy((char*) cmdResponse.error.message, COMMS_ERROR_SYNC_PARAMS);
-        encodeGPIOMessage(GPIO_MSG_ERROR, cmdResponse);
+    if(ch->type != CHANNEL_TIMER) {
+        sendErrorMessage(COMMS_ERROR_SYNC_PARAMS);
         return 0;
     }
 
@@ -446,11 +513,16 @@ uint8_t executeSyncSettingsCommand(const ChannelSettingsSYNC* cmdInput) {
     if((cmdInput->frequency < COMMS_SYNC_MIN_FREQ) || (cmdInput->frequency > COMMS_SYNC_MAX_FREQ) ||
        (cmdInput->dutyCycle < COMMS_SYNC_MIN_DUTY_CYCLE) || 
        (cmdInput->dutyCycle > COMMS_SYNC_MAX_DUTY_CYCLE)) {
-        strcpy((char*) cmdResponse.error.message, COMMS_ERROR_SYNC_PARAMS);
-        encodeGPIOMessage(GPIO_MSG_ERROR, cmdResponse);
+        sendErrorMessage(COMMS_ERROR_SYNC_PARAMS);
         return 0;
     }
 
     setSyncParameters(&hwTimers, cmdInput->frequency, cmdInput->frequency, cmdInput->channel);
     return 1;
+}
+
+void sendErrorMessage(const char* errorMsg) {
+    ChannelMessage cmdResponse;
+    strcpy((char*) cmdResponse.error.message, errorMsg);
+    encodeGPIOMessage(GPIO_MSG_ERROR, cmdResponse);
 }

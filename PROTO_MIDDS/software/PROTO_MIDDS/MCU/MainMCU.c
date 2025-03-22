@@ -29,9 +29,9 @@ void initMCU(TIM_HandleTypeDef* htim1,
 
     initHWTimers(&hwTimers, htim1, htim2, htim3, htim4);
 
-    startHWTimers(&hwTimers);
-
     initChannelController(&chCtrl, hspi1);
+    
+    startHWTimers(&hwTimers);
 
     // // Wait for a few seconds and try to grab any SYNC pulse.
     // HAL_Delay(3000);
@@ -50,10 +50,21 @@ void loopMCU() {
 
     // Generate the recurrent messages.
     ChannelMessage tempMsg = {};
+    Channel* ch;
     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
-        if(readyToPrintHWTimer(hwTimers.channels + i)) {
-            tempMsg.monitor = hwTimers.channels + i;
-            encodeGPIOMessage(GPIO_MSG_MONITOR, tempMsg); 
+        ch = chCtrl.channels + i;
+
+        // Recurrent message for Monitor mode.
+        if((ch->mode == CHANNEL_MONITOR_BOTH_EDGES) || 
+           (ch->mode == CHANNEL_MONITOR_RISING_EDGES) || 
+           (ch->mode == CHANNEL_MONITOR_FALLING_EDGES)) {
+            if((ch->type == CHANNEL_TIMER) && readyToPrintHWTimer(ch->data.timer.timerHandler)) {
+                tempMsg.monitor = ch->data.timer.timerHandler;
+                encodeGPIOMessage(GPIO_MSG_MONITOR, tempMsg); 
+            }else if(ch->type == CHANNEL_GPIO) {
+                // Not implemented.
+                continue;
+            }
         }
     }
 

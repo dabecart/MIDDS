@@ -20,12 +20,12 @@
 
 typedef struct 
 {
-    uint8_t     data[CIRCULAR_BUFFER_MAX_SIZE]; // Data buffer.
     uint32_t    size;                           // Full size of the buffer.    
     uint32_t    len;                            // Number of bytes to read (stored bytes count).
     uint32_t    head;                           // Index to read from.
     uint32_t    tail;                           // Index to write to.
-} CircularBuffer;
+    uint8_t     data[CIRCULAR_BUFFER_MAX_SIZE]; // Data buffer.
+} __attribute__((__packed__)) CircularBuffer;
 
 /**************************************** FUNCTION *************************************************
  * @brief Starts a CircularBuffer.

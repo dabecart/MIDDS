@@ -25,7 +25,7 @@ typedef struct
     uint32_t    head;                           // Index to read from.
     uint32_t    tail;                           // Index to write to.
     uint64_t    data[CIRCULAR_BUFFER_64_MAX_SIZE]; // Data buffer.
-} CircularBuffer64;
+} __attribute__((__packed__)) CircularBuffer64;
 
 /**************************************** FUNCTION *************************************************
  * @brief Starts a CircularBuffer64.

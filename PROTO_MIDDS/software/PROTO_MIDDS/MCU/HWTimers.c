@@ -36,36 +36,36 @@ void initHWTimers(HWTimers* htimers, TIM_HandleTypeDef* htim1, TIM_HandleTypeDef
     HWTimerChannel* currentChannel = htimers->channels;
     uint16_t channelNumber = 0;
     // Ch 00: TIM3_2
-    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_2, CH00_GPIO_Port,  CH00_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim3, TIM_CHANNEL_2, CH00_GPIO_Port,  CH00_Pin, channelNumber++, 0);
     // Ch 01: TIM3_1
-    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_1, CH01_GPIO_Port,  CH01_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim3, TIM_CHANNEL_1, CH01_GPIO_Port,  CH01_Pin, channelNumber++, 0);
     // Ch 02: TIM3_3
-    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_3, CH02_GPIO_Port,  CH02_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim3, TIM_CHANNEL_3, CH02_GPIO_Port,  CH02_Pin, channelNumber++, 0);
     // Ch 03: TIM3_4
-    initHWTimer(currentChannel++, htim3, TIM_CHANNEL_4, CH03_GPIO_Port,  CH03_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim3, TIM_CHANNEL_4, CH03_GPIO_Port,  CH03_Pin, channelNumber++, 0);
     // Ch 04: TIM1_3
-    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_3, CH04_GPIO_Port,  CH04_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim1, TIM_CHANNEL_3, CH04_GPIO_Port,  CH04_Pin, channelNumber++, 0);
     // Ch 05: TIM1_2
-    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_2, CH05_GPIO_Port,  CH05_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim1, TIM_CHANNEL_2, CH05_GPIO_Port,  CH05_Pin, channelNumber++, 0);
     // Ch 06: TIM1_1
-    initHWTimer(currentChannel++, htim1, TIM_CHANNEL_1, CH06_GPIO_Port,  CH06_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim1, TIM_CHANNEL_1, CH06_GPIO_Port,  CH06_Pin, channelNumber++, 0);
     // Ch 07: TIM4_4
-    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_4, CH07_GPIO_Port,  CH07_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim4, TIM_CHANNEL_4, CH07_GPIO_Port,  CH07_Pin, channelNumber++, 0);
     // Ch 08: TIM4_1
-    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_1, CH08_GPIO_Port,  CH08_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim4, TIM_CHANNEL_1, CH08_GPIO_Port,  CH08_Pin, channelNumber++, 0);
     // Ch 09: TIM4_2
-    initHWTimer(currentChannel++, htim4, TIM_CHANNEL_2, CH09_GPIO_Port,  CH09_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim4, TIM_CHANNEL_2, CH09_GPIO_Port,  CH09_Pin, channelNumber++, 0);
     // Ch 10: TIM2_4
-    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_4, CH10_GPIO_Port,  CH10_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim2, TIM_CHANNEL_4, CH10_GPIO_Port,  CH10_Pin, channelNumber++, 0);
     // Ch 11: TIM2_3
-    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_3, CH11_GPIO_Port,  CH11_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim2, TIM_CHANNEL_3, CH11_GPIO_Port,  CH11_Pin, channelNumber++, 0);
     // Ch 12: TIM2_1
-    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_2, CH12_GPIO_Port,  CH12_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim2, TIM_CHANNEL_2, CH12_GPIO_Port,  CH12_Pin, channelNumber++, 0);
     // Ch 13: TIM2_1
-    initHWTimer(currentChannel++, htim2, TIM_CHANNEL_1, CH13_GPIO_Port,  CH13_Pin, channelNumber++, 0);
+    initHWTimer_(currentChannel++, htim2, TIM_CHANNEL_1, CH13_GPIO_Port,  CH13_Pin, channelNumber++, 0);
 }
 
-void initHWTimer(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timChannel,
+void initHWTimer_(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timChannel,
                  GPIO_TypeDef* gpioPort, uint32_t gpioPin, uint16_t channelNumber, uint8_t isSync) {
     init_cb64(&timCh->data, CIRCULAR_BUFFER_64_MAX_SIZE);
     
@@ -104,9 +104,7 @@ void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle, uint
 }
 
 void startHWTimers(HWTimers* htimers) {
-    if(htimers == NULL) {
-        return;
-    }
+    if(htimers == NULL) return;
 
     // Start base timers.
     HAL_TIM_Base_Start_IT(hwTimers.htim1);
@@ -118,11 +116,11 @@ void startHWTimers(HWTimers* htimers) {
     HAL_TIM_Base_Start_IT(hwTimers.htim4);
     __HAL_TIM_DISABLE_IT(hwTimers.htim4, TIM_IT_UPDATE);
 
-    // First, start all timers and enable their interrupts except the Update ISR.
+    // First, start all timers and disable their interrupts.
     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
         HAL_TIM_IC_Start_IT(hwTimers.channels[i].htim, hwTimers.channels[i].timChannel);
+        setHWTimerEnabled(hwTimers.channels + i, 0);
     }
-
 }
 
 void clearHWTimer(HWTimerChannel* hwTimer) {
@@ -144,11 +142,15 @@ void setHWTimerEnabled(HWTimerChannel* hwTimer, uint8_t enabled){
     }
 }
 
+double getChannelFrequency(HWTimerChannel* hwTimer) {
+    return ((double) MCU_FREQUENCY) / ((double) (hwTimer->riseTimestampNew - hwTimer->riseTimestampPrevious));
+}
+
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 // TIMER ISR FUNCTIONS
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 
-inline void saveTimestamp(HWTimerChannel* channel, uint8_t addCoarseIncrement) {
+inline void saveTimestamp_(HWTimerChannel* channel, uint8_t addCoarseIncrement) {
     if(((channel->htim->Instance->SR & channel->channelMask) == 0) || 
        ((channel->htim->Instance->DIER & channel->channelMask) == 0))
     {
@@ -157,10 +159,6 @@ inline void saveTimestamp(HWTimerChannel* channel, uint8_t addCoarseIncrement) {
     }
 
     __HAL_TIM_CLEAR_FLAG(channel->htim, channel->channelMask);
-    if(channel->data.len >= channel->data.size || channel->gpioPort == NULL) {
-        // If there's too much data on the circular buffer, wait until it empties a bit. 
-        return;
-    }
 
     uint64_t capturedVal = HAL_TIM_ReadCapturedValue(channel->htim, channel->timChannel);
     // If during this function a restart event has ocurred (addCoarseIncrement = 1), then the 
@@ -218,24 +216,29 @@ inline void saveTimestamp(HWTimerChannel* channel, uint8_t addCoarseIncrement) {
         }
     }
     // TODO: Make currentSyncState = 0xFF if enough time has passed since the last SYNC.
+    
+    if(currentGPIOValue) {
+        channel->riseTimestampPrevious = channel->riseTimestampNew;
+        channel->riseTimestampNew = capturedVal;
+    }
 
     // Move the value to the left one bit. The LSB will signal the current state of the GPIO.
     capturedVal = (capturedVal << 1) | currentGPIOValue;
     push_cb64(&channel->data, capturedVal);
 }
 
-void captureInputISR(TIM_HandleTypeDef* htim) {
+void captureInputISR_(TIM_HandleTypeDef* htim) {
     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
         if(htim->Instance != hwTimers.channels[i].htim->Instance) continue;
 
         // Don't add the coarse increment. That's only done when a timer update has occurred.
-        saveTimestamp(hwTimers.channels+i, 0);
+        saveTimestamp_(hwTimers.channels+i, 0);
     }
 }
 
-void restartMasterTimerISR(TIM_HandleTypeDef* htim) {
+void restartMasterTimerISR_(TIM_HandleTypeDef* htim) {
     // This function is only called by TIM1 (the master timer).
-    // Even though captureInputISR() and this function have the same priority in NVIC, this function
+    // Even though captureInputISR_() and this function have the same priority in NVIC, this function
     // interrupts the previous one, I suppose it has something to do with hardware priority.
     uint32_t itFlags   = htim->Instance->SR;
     uint32_t itEnabled = htim->Instance->DIER;
@@ -250,7 +253,7 @@ void restartMasterTimerISR(TIM_HandleTypeDef* htim) {
     // channels. If there are, save them but take into account that an clock reset has happened 
     // and the captured value may pertain to the new coarse, which still hasn't been incremented.
     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
-        saveTimestamp(hwTimers.channels+i, 1);
+        saveTimestamp_(hwTimers.channels+i, 1);
     }
     
     // After all channels have been updated, modify the coarse.

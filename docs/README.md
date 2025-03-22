@@ -125,8 +125,11 @@ The MIDDS protocol has been designed to be as quick and lightweight as possible 
 - Bytes are formatted in little-endian.
 - Bytes are sent from left to right. In the case of the tables below, from up to bottom.
 - There is no acknowledgement between messages:
-  - If the message is not well formatted, the receiving end of the communication should discard it.
-  - A message must be fully correct for the MIDDS to apply it. If even a minor field is not formatted accordingly, MIDDS will not answer to it nor will apply any changes to its internal configuration.
+  - If the message is not well formatted, the receiving end of the communication should discard it. MIDDS will generate an error message on this cases.
+  - A message must be fully correct for the MIDDS to apply it. If even a minor field is not formatted accordingly, MIDDS will not apply any changes to its internal configuration.
+- The **time** fields works as:
+  - *Delay time* when the message is sent from the PC to MIDDS.
+  - *Response Timestamp* when the message is sent from MIDDS to the PC.
 
 ## Commands/Messages
 
@@ -158,6 +161,21 @@ Sets the value of an *output* channel. This output can be instant or delayed unt
 | Channel number     | `00` to `99` | `char` | 2         | 2           |
 | Write value        | `0` or `1`   | `char` | 1         | 4           |
 | Time               | ---          | `time` | 8         | 5           |
+
+### Frequency (`F`)
+
+Gives the frequency of a MIDDS *input* or *monitoring* channel. This read can be instant or delayed until a certain time.
+- Sent by the computer and answered by MIDDS.
+- If this command is sent to an *output* or *disabled* channel, it will be discarded.
+- Command format. 20 bytes long.
+  
+| Field              | Value                                | Type     | Byte size | Byte Offset |
+|--------------------|--------------------------------------|--------  |-----------|-------------|
+| Start character    | `$`                                  | `char`   | 1         | 0           |
+| Command descriptor | `F`                                  | `char`   | 1         | 1           |
+| Channel number     | `00` to `99`                         | `char`   | 2         | 2           |
+| Frequency          | PC: do not care<br>MIDDS: `Hz`       | `double` | 8         | 4           |
+| Time               | ---                                  | `time`   | 8         | 12           |
 
 ### Monitor (`M`)
 
@@ -191,12 +209,12 @@ Sets the configuration of a channel of the MIDDS.
   - Read configuration. Asks the MIDDS for the current configuration of the channel. The MIDDS returns it.
 - This command **cannot be delayed**, its effect is immediate.
 - Fields of the Configuration Channel:
-  - Set the mode of a MIDDS channel:
+  - Set the **mode** of a MIDDS channel:
     - **Input**. Reads the value of a given channel in the specified time mark or as quick as possible.
     - **Output**. The channel outputs a given value in the specified time mark or as quick as possible.
     - **Monitoring**. It is an special kind of input. When a change in the voltage of the channel occurs, MIDDS sends a message to the computer with the current value of the channel and its timestamp.
     - **Disabled**. The channel enters a high impedance state. No message is accepted or generated for this channel.
-  - Set the signal type of the channel:
+  - Set the **signal** type of the channel:
     - **TTL**.
     - **LVDS**.
   - Specifies the SYNC channel, replacing the previous one. The SYNC channel can only be set as either *Input* or *Monitor* (on either one of the three available edges). If set as *Input*, the user may sporadically read the current value of the SYNC signal. If set as *Monitor*, the user will automatically get those reading on the corresponding edge it has set to monitor.
@@ -230,7 +248,8 @@ This command sets the time of reference for a SYNC pulse, its frequency and duty
 #### Error Message
 
 This message is sent by the MIDDS when there's an internal error/warning. The message is delimited 
-by a new line character `\n`.
+by a new line character `\n`. The maximum length of the message is 63 characters plus one for the
+new line.
 
 - Command format. Minimum 3 bytes.
 
@@ -238,7 +257,7 @@ by a new line character `\n`.
 |-----------------------|--------------------------|----------|-----------|-------------|
 | Start character       | `$`                      | `char`   | 1         | 0           |
 | Command descriptor    | `E`                      | `char`   | 1         | 1           |
-| Message               | ---                      | `char[]` | n         | 2           |
+| Message               | ---                      | `char[]` | n < 64    | 2           |
 
 <!-- ## I/O Organization
 
