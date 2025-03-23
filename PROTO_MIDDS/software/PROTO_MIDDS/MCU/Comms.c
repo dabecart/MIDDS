@@ -22,33 +22,9 @@ extern USBD_HandleTypeDef hUsbDeviceFS;
 // Set to 1 when the USB is connected.
 uint8_t usbConnected = 0;
 
-void initComms(uint8_t blockUntilConnection) {
+void initComms() {
     init_cb(&inputBuffer, CIRCULAR_BUFFER_MAX_SIZE);
     init_cb(&outputBuffer, CIRCULAR_BUFFER_MAX_SIZE);
-
-    if(blockUntilConnection) {
-        // Wait until the USB gets connected. To connect, send from the computer COMMS_CONNECT_CMD.
-        uint8_t peekChar;
-        int searchIndex = 0;
-        while((hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED) || (!usbConnected)) {
-            if(inputBuffer.len > 0) {
-                pop_cb(&inputBuffer, &peekChar);
-                if(peekChar == COMMS_CONNECT_CMD[searchIndex]) {
-                    searchIndex++;
-                }else {
-                    searchIndex = 0;
-                }
-
-                if(searchIndex == strlen(COMMS_CONNECT_CMD)) {
-                    usbConnected = 1;
-                }
-            }
-        }
-    }
-
-    // Transmit welcome message. 
-    char* WELCOME_MSG = "Connected to PROTO_MIDDS v.0.1\n";
-    while(CDC_Transmit_FS((uint8_t*) WELCOME_MSG, strlen(WELCOME_MSG)) == USBD_BUSY){}
 }
 
 void receiveData() {
@@ -84,6 +60,8 @@ void receiveData() {
 void sendData() {
     static uint8_t outMsg[USB_MAX_DATA_PACKAGE_SIZE];
     static uint16_t outMsgLen = 0;
+
+    if(!usbConnected) return;
 
     if(outMsgLen == 0) {
         outMsgLen = outputBuffer.len;
@@ -184,6 +162,10 @@ int32_t decodeGPIOMessage(const uint8_t* dataBuffer, const uint32_t dataLen) {
 
         messageLen = COMMS_MSG_SYNC_SETT_LEN;
         executeSyncSettingsCommand(&temp);
+    }else if(strncmp(messageID, COMMS_MSG_CONNECT_HEAD, strlen(COMMS_MSG_CONNECT_HEAD)) == 0) {
+        establishConnection(1);
+    }else if(strncmp(messageID, COMMS_MSG_DISCONNECT_HEAD, strlen(COMMS_MSG_DISCONNECT_HEAD)) == 0) {
+        establishConnection(0);
     }else {
         return COMMS_DECODE_SYNC_SEQUENCE_NOK;
     }
@@ -525,4 +507,19 @@ void sendErrorMessage(const char* errorMsg) {
     ChannelMessage cmdResponse;
     strcpy((char*) cmdResponse.error.message, errorMsg);
     encodeGPIOMessage(GPIO_MSG_ERROR, cmdResponse);
+}
+
+void establishConnection(uint8_t connect) {
+    const char* WELCOME_MSG = "Connected to PROTO_MIDDS v.0.1\n";
+    const char* DISCONNECTION_MSG = "Disconnected\n";
+
+    usbConnected = connect;
+    if(usbConnected) {
+        // Transmit welcome message. 
+        empty_cb(&outputBuffer);
+        pushN_cb(&outputBuffer, (uint8_t*) WELCOME_MSG, strlen(WELCOME_MSG));
+    }else {
+        // Transmit disconnection message.
+        while(CDC_Transmit_FS((uint8_t*) DISCONNECTION_MSG, strlen(DISCONNECTION_MSG)) == USBD_BUSY){}
+    }
 }

@@ -25,10 +25,8 @@
 
 /**************************************** FUNCTION *************************************************
  * @brief Start the buffers for communication. 
- * @param blockUntilConnection: If 1, the program will hold until the COMMS_CONNECT_CMD message is
- * sent from the computer.
 ***************************************************************************************************/
-void initComms(uint8_t blockUntilConnection);
+void initComms();
 
 /**************************************** FUNCTION *************************************************
  * @brief Main function to process the received data from USB. 
@@ -193,6 +191,12 @@ uint8_t executeSyncSettingsCommand(const ChannelSettingsSYNC* cmdInput);
  * @param errorMsg: The error message.
 ***************************************************************************************************/
 void sendErrorMessage(const char* errorMsg);
+
+/**************************************** FUNCTION *************************************************
+ * @brief Sets MIDDS as connected or disconnected with the computer.
+ * @param connect: 1 to connect, 0 to disconnect.
+***************************************************************************************************/
+void establishConnection(uint8_t connect);
 
 /**************************************** EXTERNALS ***********************************************/
 extern CircularBuffer inputBuffer;

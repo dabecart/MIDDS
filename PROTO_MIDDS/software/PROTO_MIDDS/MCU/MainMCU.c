@@ -22,7 +22,7 @@ void initMCU(TIM_HandleTypeDef* htim1,
              TIM_HandleTypeDef* htim4,
              SPI_HandleTypeDef* hspi1)
 {
-    initComms(WAIT_UNTIL_USB_CONNECTION);
+    initComms();
 
     ST7735_Init(hspi1);
     ST7735_FillScreenFast(ST7735_BLACK);

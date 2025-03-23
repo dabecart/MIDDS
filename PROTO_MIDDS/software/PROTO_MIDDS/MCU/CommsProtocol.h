@@ -16,7 +16,6 @@
 #include "stdint.h"
 
 #define COMMS_MSG_SYNC              '$'
-#define COMMS_CONNECT_CMD           "$CONN"
 
 #define COMMS_MSG_INPUT_LEN          13
 #define COMMS_MSG_OUTPUT_LEN         13
@@ -34,6 +33,8 @@
 #define COMMS_MSG_CHANNEL_SETT_HEAD  "SC"
 #define COMMS_MSG_SYNC_SETT_HEAD     "SY"
 #define COMMS_MSG_ERROR_HEAD         "E"
+#define COMMS_MSG_CONNECT_HEAD       "CONN"
+#define COMMS_MSG_DISCONNECT_HEAD    "DISC"
 
 #define COMMS_SETT_CH_INPUT              "IN"
 #define COMMS_SETT_CH_OUTPUT             "OU"
