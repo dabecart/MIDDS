@@ -1,12 +1,19 @@
+from __future__ import annotations
+
 import configparser
 from MIDDSChannel import MIDDSChannel
 import os.path
+import copy
+from typing import Final
 
 class ProgramConfiguration:
-    CHANNEL_COUNT = 14
+    # Default fields
+    CHANNEL_COUNT:  Final[int]      = 14
+    UPDATE_TIME_s:  Final[float]    = 0.5
 
     def __init__(self, configRoute):
         self.config = configparser.ConfigParser()
+        # Disables the "lowercasing" of the fields on the configuration file.
         self.config.optionxform = str
 
         # Test if it's an absolute path.
@@ -25,8 +32,9 @@ class ProgramConfiguration:
             else:
                 # First run program settings
                 self.config['ProgramConfig'] = {
-                    'CHANNEL_COUNT' :   ProgramConfiguration.CHANNEL_COUNT,
-                    'SERIAL_PORT'   :   "",
+                    'CHANNEL_COUNT'     :   ProgramConfiguration.CHANNEL_COUNT,
+                    'SERIAL_PORT'       :   "",
+                    'UPDATE_TIME_s'     :   ProgramConfiguration.UPDATE_TIME_s,
                 }
                 self.channels: list[MIDDSChannel] = [
                     MIDDSChannel(number=i) for i in range(ProgramConfiguration.CHANNEL_COUNT)]
@@ -34,13 +42,15 @@ class ProgramConfiguration:
     def parseConfiguration_(self):
         self.config.read(self.configPath)
 
-        # Read the general Program configuration.
+        # Read the general Program configuration, write missing fields as strings!
         if 'ProgramConfig' in self.config:
             programConfig = self.config['ProgramConfig']
             if 'CHANNEL_COUNT' not in programConfig:
                 programConfig['CHANNEL_COUNT'] = str(ProgramConfiguration.CHANNEL_COUNT)
             if 'SERIAL_PORT' not in programConfig:
                 programConfig['SERIAL_PORT'] = ""
+            if 'UPDATE_TIME_s' not in programConfig:
+                programConfig['UPDATE_TIME_s'] = str(ProgramConfiguration.UPDATE_TIME_s)
 
         # Read the channels' configuration.
         self.channels: list[MIDDSChannel] = []
@@ -62,6 +72,14 @@ class ProgramConfiguration:
         
         with open(self.configPath, 'w') as configfile:
             self.config.write(configfile)
+
+    def copyFrom(self, other: ProgramConfiguration):
+        if not isinstance(other, ProgramConfiguration):
+            raise TypeError("Can only copy from another ProgramConfiguration instance")
+
+        self.config = copy.deepcopy(other.config)
+        self.configPath = other.configPath
+        self.channels = copy.deepcopy(other.channels)
 
     # Dictionary function calls.
     def __getitem__(self, key):

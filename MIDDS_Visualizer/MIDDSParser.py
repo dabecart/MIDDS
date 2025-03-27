@@ -1,7 +1,10 @@
 import struct
 from serial import Serial
+from collections import deque
 
 class MIDDSParser:
+    COMMS_MSG_SYNC                  = '$'
+
     COMMS_MSG_INPUT_LEN             = 13
     COMMS_MSG_OUTPUT_LEN            = 13
     COMMS_MSG_MONITOR_HEADER_LEN    = 8
@@ -17,6 +20,10 @@ class MIDDSParser:
     COMMS_MSG_CHANNEL_SETT_HEAD     = "SC"
     COMMS_MSG_SYNC_SETT_HEAD        = "SY"
     COMMS_MSG_ERROR_HEAD            = "E"
+
+    COMMS_ERROR_MAX_LEN             = 64
+
+    inputDeque = deque()
 
     @staticmethod
     def encodeMessage(msgDict: dict[str,any] | None) -> bytes | None:
@@ -47,42 +54,131 @@ class MIDDSParser:
     
     @staticmethod
     def decodeMessage(serial: Serial) -> dict[str,any] | None:
-        while True:
-            startByte: bytes = serial.read(1)
-            if not startByte:
-                # No more messages.
-                break
+        serialData: bytes = serial.read(serial.in_waiting)
+        with open('test.txt', 'ab') as f:
+            f.write(serialData)
             
-            if startByte != b'$':
+        MIDDSParser.inputDeque.extend(serialData[i:i+1] for i in range(len(serialData)))
+        
+        readMsg: bytes = b''
+
+        def popN(d: deque, n: int) -> bytes:
+            ret = b''
+            for _ in range(n):
+                if len(d) > 0:
+                    ret += d.popleft()
+                else:
+                    break
+            return ret
+
+        def discardMessage():
+            # Discard the first byte of the read message, append it to the deque again and 
+            # recalculate.
+            MIDDSParser.inputDeque.extendleft(reversed(readMsg[1:]))
+        
+        def reconstructMessage():
+            MIDDSParser.inputDeque.extendleft(reversed(readMsg))
+
+        while len(MIDDSParser.inputDeque) > 0:
+            readMsg: bytes = MIDDSParser.inputDeque.popleft()
+            if readMsg != b'$':
                 # Ignore invalid start character.
                 continue  
             
-            command: bytes = serial.read(1)
-            if not command:
+            if len(MIDDSParser.inputDeque) <= 0:
+                # No more messages.
                 break
+            readMsg += MIDDSParser.inputDeque.popleft()
             
-            if command == b'I':
-                data = serial.read(MIDDSParser.COMMS_MSG_INPUT_LEN - 2)
-                if len(data) == (MIDDSParser.COMMS_MSG_INPUT_LEN - 2):
-                    return MIDDSParser.decodeInput(b'$I' + data) 
-            elif command == b'O':
-                data = serial.read(MIDDSParser.COMMS_MSG_OUTPUT_LEN - 2)
-                if len(data) == (MIDDSParser.COMMS_MSG_OUTPUT_LEN - 2):
-                    return MIDDSParser.decodeOutput(b'$O' + data)
-            elif command == b'M':
-                header = serial.read(MIDDSParser.COMMS_MSG_MONITOR_HEADER_LEN - 2)
-                if len(header) == (MIDDSParser.COMMS_MSG_MONITOR_HEADER_LEN - 2):
-                    sampleCount = int(header[4:].decode())
-                    sampleData = serial.read(sampleCount * 8)
-                    if len(sampleData) == sampleCount * 8:
-                        return MIDDSParser.decodeMonitor(b'$M' + header + sampleData)
-            elif command == b'F':
-                data = serial.read(MIDDSParser.COMMS_MSG_FREQ_LEN - 2)
-                if len(data) == (MIDDSParser.COMMS_MSG_FREQ_LEN - 2):
-                    return MIDDSParser.decodeFrequency(b'$F' + data) 
-            elif command == b'E':
-                errorMsg = serial.readline()
-                return MIDDSParser.decodeError(b'$E' + errorMsg)
+            if readMsg == b'$I':
+                readMsg += popN(MIDDSParser.inputDeque, MIDDSParser.COMMS_MSG_INPUT_LEN - 2)
+                if len(readMsg) != MIDDSParser.COMMS_MSG_INPUT_LEN:
+                    # Not enough data. Wait for the next iteration.
+                    reconstructMessage()
+                    break
+                
+                try:
+                    return MIDDSParser.decodeInput(readMsg) 
+                except:
+                    # Error while decoding. 
+                    discardMessage()
+
+            elif readMsg == b'$O':
+                readMsg += popN(MIDDSParser.inputDeque, MIDDSParser.COMMS_MSG_OUTPUT_LEN - 2)
+                if len(readMsg) != MIDDSParser.COMMS_MSG_OUTPUT_LEN:
+                    # Not enough data. Wait for the next iteration.
+                    reconstructMessage()
+                    break
+                
+                try:
+                    return MIDDSParser.decodeOutput(readMsg) 
+                except:
+                    # Error while decoding. Discard the first byte of the read message, append it
+                    # to the deque again and recalculate.
+                    discardMessage()
+                
+            elif readMsg == b'$M':
+                readMsg += popN(MIDDSParser.inputDeque, MIDDSParser.COMMS_MSG_MONITOR_HEADER_LEN - 2)
+                if len(readMsg) != MIDDSParser.COMMS_MSG_MONITOR_HEADER_LEN:
+                    # Not enough data. Wait for the next iteration.
+                    reconstructMessage()
+                    break
+
+                try:
+                    sampleCount = int(readMsg[6:].decode())
+                except:
+                    # If the sample count is not a number, the message is to be discarded.
+                    discardMessage()
+                    break
+
+                sampleData = popN(MIDDSParser.inputDeque, sampleCount * 8)
+                if len(sampleData) != (MIDDSParser.COMMS_MSG_MONITOR_HEADER_LEN + sampleCount*8):
+                    reconstructMessage()
+                    break
+
+                try:
+                    return MIDDSParser.decodeMonitor(readMsg) 
+                except:
+                    # Error while decoding. Discard the first byte of the read message, append it
+                    # to the deque again and recalculate.
+                    discardMessage()
+                
+            elif readMsg == b'$F':
+                readMsg += popN(MIDDSParser.inputDeque, MIDDSParser.COMMS_MSG_FREQ_LEN - 2)
+                if len(readMsg) != MIDDSParser.COMMS_MSG_FREQ_LEN:
+                    # Not enough data. Wait for the next iteration.
+                    reconstructMessage()
+                    break
+                
+                try:
+                    return MIDDSParser.decodeFrequency(readMsg) 
+                except:
+                    # Error while decoding. Discard the first byte of the read message, append it
+                    # to the deque again and recalculate.
+                    discardMessage()
+
+            elif readMsg == b'$E':
+                while (len(MIDDSParser.inputDeque) > 0) and \
+                      (len(readMsg) < MIDDSParser.COMMS_ERROR_MAX_LEN) and \
+                      ((readChar := MIDDSParser.inputDeque.popleft()) != b'\n'):
+                    readMsg += readChar
+
+                if readMsg != b'\n':
+                    # There are still some characters missing from the error message.
+                    reconstructMessage()
+                    break
+
+                if len(readMsg) >= MIDDSParser.COMMS_ERROR_MAX_LEN:
+                    # Too many characters for an error message. Discard message.
+                    discardMessage()
+                    continue
+
+                try:
+                    return MIDDSParser.decodeError(readMsg)
+                except:
+                    # Error while decoding. Discard the first byte of the read message, append it
+                    # to the deque again and recalculate.
+                    discardMessage()
                 
         return None
 
@@ -90,13 +186,11 @@ class MIDDSParser:
     def encodeInput(channel: int|None, readValue: int|None, time: float|None) -> bytes:
         if channel is None or readValue is None or time is None:
             raise ValueError("Invalid encode input values")
-        return struct.pack('<cc2ssQ', b'$', b'I', f'{channel:02}'.encode(), f'{readValue:01}'.encode(), time)
+        return struct.pack('<cc2ssd', b'$', b'I', f'{channel:02}'.encode(), f'{readValue:01}'.encode(), time)
     
     @staticmethod
     def decodeInput(data: bytes):
-        if len(data) != MIDDSParser.COMMS_MSG_INPUT_LEN:
-            raise ValueError("Invalid input message length")
-        _, _, channel, readValue, time = struct.unpack('<cc2s1sQ', data)
+        _, _, channel, readValue, time = struct.unpack('<cc2s1sd', data)
         if readValue == b'0' or readValue == b'1':
             return {
                 "command":      MIDDSParser.COMMS_MSG_INPUT_HEAD,
@@ -115,13 +209,11 @@ class MIDDSParser:
     def encodeOutput(channel: int|None, writeValue: int|None, time: float|None) -> bytes:
         if channel is None or writeValue is None or time is None:
             raise ValueError("Invalid encode write values")
-        return struct.pack('<cc2ssQ', b'$', b'O', f'{channel:02}'.encode(), f'{writeValue:01}'.encode(), time)
+        return struct.pack('<cc2ssd', b'$', b'O', f'{channel:02}'.encode(), f'{writeValue:01}'.encode(), time)
     
     @staticmethod
     def decodeOutput(data: bytes):
-        if len(data) != MIDDSParser.COMMS_MSG_OUTPUT_LEN:
-            raise ValueError("Invalid output message length")
-        _, _, channel, writeValue, time = struct.unpack('<cc2s1sQ', data)
+        _, _, channel, writeValue, time = struct.unpack('<cc2s1sd', data)
         return {
             "command":      MIDDSParser.COMMS_MSG_OUTPUT_HEAD,
             "channel":      int(channel.decode()),
@@ -140,8 +232,6 @@ class MIDDSParser:
     
     @staticmethod
     def decodeMonitor(data: bytes):
-        if len(data) < MIDDSParser.COMMS_MSG_MONITOR_HEADER_LEN:
-            raise ValueError("Invalid monitor message length")
         _, _, channel, sampleCount = struct.unpack('<cc2s4s', data[:MIDDSParser.COMMS_MSG_MONITOR_HEADER_LEN])
         samples = [struct.unpack('<Q', data[8+i*8:16+i*8])[0] for i in range(int(sampleCount))]
         return {
@@ -155,15 +245,13 @@ class MIDDSParser:
     def encodeFrequency(channel: int|None, time: float|None) -> bytes:
         if channel is None or time is None:
             raise ValueError("Invalid encode frequency values")
-        return struct.pack('<cc2sQQ', b'$', b'F', f'{channel:02}'.encode(), 0.0, time)
+        return struct.pack('<cc2sdd', b'$', b'F', f'{channel:02}'.encode(), 0.0, time)
     
     @staticmethod
     def decodeFrequency(data: bytes):
-        if len(data) != MIDDSParser.COMMS_MSG_FREQ_LEN:
-            raise ValueError("Invalid frequency message length")
-        _, _, channel, frequency, time = struct.unpack('<cc2sQQ', data)
+        _, _, channel, frequency, time = struct.unpack('<cc2sdd', data)
         return {
-            "command":      MIDDSParser.COMMS_MSG_OUTPUT_HEAD,
+            "command":      MIDDSParser.COMMS_MSG_FREQ_HEAD,
             "channel":      int(channel.decode()),
             "frequency":    frequency,
             "time":         time
@@ -177,8 +265,6 @@ class MIDDSParser:
     
     @staticmethod
     def decodeSettingsChannel(data: bytes):
-        if len(data) != 8:
-            raise ValueError("Invalid settings channel message length")
         _, _, _, channel, mode, signal, sync = struct.unpack('<ccc2s2s1s1s', data)
         return {
             "command":      MIDDSParser.COMMS_MSG_CHANNEL_SETT_HEAD,
@@ -191,12 +277,10 @@ class MIDDSParser:
     def encodeSettingsSYNC(frequency: str|None, dutyCycle: str|None, time: float|None) -> bytes:
         if frequency is None or dutyCycle is None or time is None:
             raise ValueError("Invalid encode Settings SYNC values")
-        return struct.pack('<ccc5s5sQ', b'$', b'S', b'Y', frequency.encode(), dutyCycle.encode(), time)
+        return struct.pack('<ccc5s5sd', b'$', b'S', b'Y', frequency.encode(), dutyCycle.encode(), time)
     
     @staticmethod
     def decodeSettingsSYNC(data: bytes):
-        if len(data) != 23:
-            raise ValueError("Invalid settings SY message length")
         _, _, _, channel, frequency, dutyCycle, time = struct.unpack('<ccc2s5s5sQ', data)
         return {
             "command":      MIDDSParser.COMMS_MSG_SYNC_SETT_HEAD,
@@ -216,9 +300,7 @@ class MIDDSParser:
     
     @staticmethod
     def decodeError(data: bytes):
-        if not data.startswith(b'$E') or not data.endswith(b'\n'):
-            raise ValueError("Invalid error message format")
         return {
             "command": MIDDSParser.COMMS_MSG_ERROR_HEAD,
-            "message": data[2:-1].decode()
+            "message": data[2:-1].decode(errors="backslashreplace")
         }

@@ -283,13 +283,17 @@ uint8_t decodeSettingsChannel(const uint8_t* dataBuffer, ChannelSettingsChannel 
     if(strncmp(modeIdentifier, COMMS_SETT_CH_INPUT, strlen(COMMS_SETT_CH_INPUT)) == 0) {
         decodedMsg->mode = CHANNEL_INPUT;
     }else if(strncmp(modeIdentifier, COMMS_SETT_CH_OUTPUT, strlen(COMMS_SETT_CH_OUTPUT)) == 0) {
-        decodedMsg->mode = CHANNEL_OUTPUT;
         // TODO: Cannot set channel as output for the moment.
+        // decodedMsg->mode = CHANNEL_OUTPUT;
         sendErrorMessage(COMMS_ERROR_INTERNAL);
         return 0;
     }else if(strncmp(modeIdentifier, COMMS_SETT_CH_FREQUENCY, strlen(COMMS_SETT_CH_FREQUENCY)) == 0) {
-        decodedMsg->mode = CHANNEL_FREQUENCY;
-    }else if(strncmp(modeIdentifier, COMMS_SETT_CH_MONITOR_RISING, strlen(COMMS_SETT_CH_MONITOR_RISING)) == 0) {
+    //     decodedMsg->mode = CHANNEL_FREQUENCY;
+        // TODO: Frequency mode is still not implemented. Only input channels can calculate 
+        // frequency at the moment.
+        sendErrorMessage(COMMS_ERROR_INTERNAL);
+        return 0;
+}else if(strncmp(modeIdentifier, COMMS_SETT_CH_MONITOR_RISING, strlen(COMMS_SETT_CH_MONITOR_RISING)) == 0) {
         decodedMsg->mode = CHANNEL_MONITOR_RISING_EDGES;
     }else if(strncmp(modeIdentifier, COMMS_SETT_CH_MONITOR_FALLING, strlen(COMMS_SETT_CH_MONITOR_FALLING)) == 0) {
         decodedMsg->mode = CHANNEL_MONITOR_FALLING_EDGES;
@@ -437,7 +441,7 @@ uint8_t executeFrequencyCommand(const ChannelFrequency* cmdInput) {
     }
 
     // Only if the channel is an output or disabled, return error.
-    if((ch->mode == CHANNEL_DISABLED) || (ch->mode == CHANNEL_OUTPUT)) {
+    if((ch->mode != CHANNEL_INPUT) && (ch->mode != CHANNEL_FREQUENCY)) {
         sendErrorMessage(COMMS_ERROR_INVALID_MODE);
         return 0;
     }

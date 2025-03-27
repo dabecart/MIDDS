@@ -143,7 +143,43 @@ void setHWTimerEnabled(HWTimerChannel* hwTimer, uint8_t enabled){
 }
 
 double getChannelFrequency(HWTimerChannel* hwTimer) {
-    return ((double) MCU_FREQUENCY) / ((double) (hwTimer->riseTimestampNew - hwTimer->riseTimestampPrevious));
+    // This function can only be called on "Input" mode channels.
+    double periodSum = 0, risedTimeSum = 0;
+    uint64_t previousRisingTime = 0;
+    uint32_t cycleCount = 0;
+    uint8_t firstRising = 1;
+
+    hwTimer->data.locked = 1;
+    uint64_t timestamp;
+    while(hwTimer->data.len > 0) {
+        if(!pop_cb64(&hwTimer->data, &timestamp)) break;
+
+        uint64_t time = timestamp >> 1;
+        uint32_t isRising = timestamp & 0x01ULL;
+
+        // Continue until a rising edge is found.
+        if(firstRising && !isRising) continue;
+
+        if(isRising) {
+            if(!firstRising) {
+                periodSum += time - previousRisingTime;
+                cycleCount++;
+            }
+            previousRisingTime = time;
+            firstRising = 0;
+        }else {
+            risedTimeSum += time - previousRisingTime;
+        }
+    }
+
+    hwTimer->data.locked = 0;
+
+    if(cycleCount > 0) {
+        double averagePeriodInSeconds = periodSum / cycleCount / ((double)MCU_FREQUENCY);
+        return 1.0 / averagePeriodInSeconds;
+    }else {
+        return -1.0;
+    }
 }
 
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -217,11 +253,6 @@ inline void saveTimestamp_(HWTimerChannel* channel, uint8_t addCoarseIncrement) 
     }
     // TODO: Make currentSyncState = 0xFF if enough time has passed since the last SYNC.
     
-    if(currentGPIOValue) {
-        channel->riseTimestampPrevious = channel->riseTimestampNew;
-        channel->riseTimestampNew = capturedVal;
-    }
-
     // Move the value to the left one bit. The LSB will signal the current state of the GPIO.
     capturedVal = (capturedVal << 1) | currentGPIOValue;
     push_cb64(&channel->data, capturedVal);
@@ -238,8 +269,9 @@ void captureInputISR_(TIM_HandleTypeDef* htim) {
 
 void restartMasterTimerISR_(TIM_HandleTypeDef* htim) {
     // This function is only called by TIM1 (the master timer).
-    // Even though captureInputISR_() and this function have the same priority in NVIC, this function
-    // interrupts the previous one, I suppose it has something to do with hardware priority.
+    // Even though captureInputISR_() and this function have the same priority in NVIC, this 
+    // function interrupts the previous one, I suppose it has something to do with hardware 
+    // priority.
     uint32_t itFlags   = htim->Instance->SR;
     uint32_t itEnabled = htim->Instance->DIER;
 
@@ -253,7 +285,7 @@ void restartMasterTimerISR_(TIM_HandleTypeDef* htim) {
     // channels. If there are, save them but take into account that an clock reset has happened 
     // and the captured value may pertain to the new coarse, which still hasn't been incremented.
     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
-        saveTimestamp_(hwTimers.channels+i, 1);
+        saveTimestamp_(hwTimers.channels + i, 1);
     }
     
     // After all channels have been updated, modify the coarse.

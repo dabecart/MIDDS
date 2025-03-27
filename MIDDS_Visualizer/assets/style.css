@@ -198,6 +198,12 @@ hr {
     white-space: nowrap;
 }
 
+.gpio-signal {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+}
+
 .apply-config {
     margin-top: auto;
     background-color: #ffe23f;
@@ -310,10 +316,12 @@ hr {
     align-items: flex-start;
 
     animation: enableAndFadeIn 0.3s ease-in-out forwards;
+    pointer-events: all;
 }
 
 .error-message-div.hidden {
     animation: fadeoutAndDisable 0.3s ease-in-out forwards;
+    pointer-events: none;
 }
 
 .error-message-div.initialHidden {
@@ -322,7 +330,6 @@ hr {
 
 @keyframes enableAndFadeIn {
     0% {
-        display: block;
         opacity: 0;
     }
     100% {
@@ -334,11 +341,8 @@ hr {
     0% {
         opacity: 100%;
     }
-    99% {
-        opacity: 0;
-    }
     100% {
-        display: none;
+        opacity: 0;
     }
 }
 

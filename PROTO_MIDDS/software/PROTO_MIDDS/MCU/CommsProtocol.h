@@ -36,12 +36,21 @@
 #define COMMS_MSG_CONNECT_HEAD       "CONN"
 #define COMMS_MSG_DISCONNECT_HEAD    "DISC"
 
+// Input channels can return their state and also their frequency and duty cycle. The frequency gets
+// calculated with timestamps. At the moment, only Timer channels can return the frequency.
 #define COMMS_SETT_CH_INPUT              "IN"
+// Output channels can set their state. Not implemented at the moment.
 #define COMMS_SETT_CH_OUTPUT             "OU"
+// Frequency channels are similar to input channels but they calculate their frequency not by their
+// timestamps but by an internal counter, meaning higher frequencies can be detected. Still not 
+// implemented.
 #define COMMS_SETT_CH_FREQUENCY          "FR"
+// Monitoring channels automatically send their "monitoring messages" containing the timestamp of 
+// their edges and its current state.
 #define COMMS_SETT_CH_MONITOR_RISING     "MR"
 #define COMMS_SETT_CH_MONITOR_FALLING    "MF"
 #define COMMS_SETT_CH_MONITOR_BOTH       "MB"
+// A disabled channel is kept in High-Z.
 #define COMMS_SETT_CH_DISABLED           "DS"
 
 #define COMMS_SYNC_MIN_FREQ         00.01

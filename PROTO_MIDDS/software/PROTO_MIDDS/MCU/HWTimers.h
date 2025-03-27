@@ -25,9 +25,6 @@
 
 // Related data and timestamps of a single Hardware Timer.
 typedef struct HWTimerChannel {
-    uint64_t            riseTimestampNew;
-    uint64_t            riseTimestampPrevious;
-
     TIM_HandleTypeDef*  htim;
     uint32_t            timChannel;     // TIM_CHANNEL_1-4
     uint32_t            channelMask;    // TIM_FLAG_CC1-4

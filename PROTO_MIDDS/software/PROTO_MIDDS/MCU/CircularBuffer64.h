@@ -20,11 +20,12 @@
 
 typedef struct 
 {
-    uint32_t    size;                           // Full size of the buffer.    
-    uint32_t    len;                            // Number of bytes to read (stored bytes count).
-    uint32_t    head;                           // Index to read from.
-    uint32_t    tail;                           // Index to write to.
-    uint64_t    data[CIRCULAR_BUFFER_64_MAX_SIZE]; // Data buffer.
+    uint32_t    size;                               // Full size of the buffer.    
+    uint32_t    len;                                // Number of bytes to read (stored bytes count).
+    uint32_t    head;                               // Index to read from.
+    uint32_t    tail;                               // Index to write to.
+    uint64_t    data[CIRCULAR_BUFFER_64_MAX_SIZE];  // Data buffer.
+    uint8_t     locked;                             // 1 to disable pushing into the buffer.
 } __attribute__((__packed__)) CircularBuffer64;
 
 /**************************************** FUNCTION *************************************************

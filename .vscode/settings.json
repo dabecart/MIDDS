@@ -26,7 +26,8 @@
         "ostream": "c",
         "stdexcept": "c",
         "streambuf": "c",
-        "functional": "c"
+        "functional": "c",
+        "algorithm": "c"
     },
     "makefile.makefilePath": "Debug\\makefile"
 }

@@ -5,6 +5,7 @@ from GUI2BackendEvents import GUI2BackendEvents
 from GUI import GUI
 import serial
 import time
+import traceback
 
 CONFIG_ROUTE = "config.ini"
 
@@ -76,26 +77,40 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
                 events.applyConfiguration.clear()
 
             if ser is not None:
-                while True:
-                    newMsg = MIDDSParser.decodeMessage(ser)
-                    if newMsg is None or 'channel' not in newMsg:
-                        break
+                try:
+                    while True:
+                        newMsg = MIDDSParser.decodeMessage(ser)
+                        if newMsg is None:
+                            break
 
-                    lock.acquire()
-                    ch = config.getChannel(newMsg['channel'])
-                    if ch is not None:
-                        ch.updateValues(newMsg)
-                    lock.release()
+                        if 'channel' in newMsg:
+                            lock.acquire()
+                            ch = config.getChannel(newMsg['channel'])
+                            if ch is not None:
+                                ch.updateValues(newMsg)
+                            lock.release()
+                        else:
+                            print(newMsg)
 
-                for ch in config.channels:
-                    msg = ch.generateRecurringMessages()
-                    if msg is not None:
-                        ser.write(msg)
+                    # Generate the recurring messages with the UPDATE_TIME from the ProgramConfiguration.
+                    if (time.perf_counter() - events.lastCommandRequest) > float(config['ProgramConfig']['UPDATE_TIME_s']):
+                        events.lastCommandRequest = time.perf_counter()
+
+                        for ch in config.channels:
+                            msg = ch.generateRecurringMessages()
+                            if msg is not None:
+                                ser.write(msg)
+                except Exception as e:
+                    ser = None
+                    events.deviceConnected = False
+                    events.setError("Serial port error", str(e))
+                    print(traceback.format_exc())
 
             time.sleep(5e-3)
 
         if ser is not None:
             ser.close()
+
     except KeyboardInterrupt:
         pass
 
