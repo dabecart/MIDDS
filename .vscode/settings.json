@@ -29,5 +29,8 @@
         "functional": "c",
         "algorithm": "c"
     },
-    "makefile.makefilePath": "Debug\\makefile"
+    "makefile.makefilePath": "Debug\\makefile",
+    "cSpell.words": [
+        "MIDDS"
+    ]
 }

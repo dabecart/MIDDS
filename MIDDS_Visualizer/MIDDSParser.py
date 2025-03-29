@@ -1,6 +1,7 @@
 import struct
 from serial import Serial
 from collections import deque
+from datetime import datetime
 
 class MIDDSParser:
     COMMS_MSG_SYNC                  = '$'
@@ -23,7 +24,9 @@ class MIDDSParser:
 
     COMMS_ERROR_MAX_LEN             = 64
 
-    inputDeque = deque()
+    inputDeque                      = deque()
+    recordingFileName: str          = ""
+    FILENAME_HEAD: str              = "MIDDS_REC_"
 
     @staticmethod
     def encodeMessage(msgDict: dict[str,any] | None) -> bytes | None:
@@ -53,11 +56,26 @@ class MIDDSParser:
         return None
     
     @staticmethod
-    def decodeMessage(serial: Serial) -> dict[str,any] | None:
+    def createNewRecordingFile():
+        # The recording has just started. Generate a file name.
+        MIDDSParser.recordingFileName = MIDDSParser.FILENAME_HEAD + datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+
+    @staticmethod
+    def decodeMessage(serial: Serial, record: bool = False) -> dict[str,any] | None:
         serialData: bytes = serial.read(serial.in_waiting)
-        with open('test.txt', 'ab') as f:
-            f.write(serialData)
-            
+
+        if record:
+            if MIDDSParser.recordingFileName == "":
+                # The recording has just started. Generate a file name. It should not enter this 
+                # line! Call createNewRecordingFile beforehand.
+                MIDDSParser.createNewRecordingFile()
+
+            with open(MIDDSParser.recordingFileName, 'ab') as f:
+                f.write(serialData)
+        else:
+            # End recording.
+            MIDDSParser.recordingFileName = ""
+
         MIDDSParser.inputDeque.extend(serialData[i:i+1] for i in range(len(serialData)))
         
         readMsg: bytes = b''

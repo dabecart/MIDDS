@@ -57,7 +57,7 @@ class ProgramConfiguration:
         for channelNumber in range(ProgramConfiguration.CHANNEL_COUNT):
             channelConfigSectionName = f"Channel{channelNumber:02d}"
             if channelConfigSectionName in self.config:
-                self.channels.append(MIDDSChannel.cast_dict_to_dataclass(self.config[channelConfigSectionName]))
+                self.channels.append(MIDDSChannel.castDictToDataclass(self.config[channelConfigSectionName]))
             else:
                 self.channels.append(MIDDSChannel(number=channelNumber))
 

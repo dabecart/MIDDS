@@ -39,7 +39,9 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
             if(requestCloseOfErrorDiv) {
                 requestCloseOfErrorDiv = false;
-                dictStore['error-message-div'] = 'error-message-div hidden';
+                if(!dictStore['error-message-div'].includes('hidden')) {
+                    dictStore['error-message-div'] += ' hidden';
+                }
                 return JSON.stringify(dictStore);
             }else{
                 return window.dash_clientside.no_update

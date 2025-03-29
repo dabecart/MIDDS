@@ -28,14 +28,14 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
             
             ch.wellConfigured = True
             while True:
-                newMsg = MIDDSParser.decodeMessage(ser)
+                newMsg = MIDDSParser.decodeMessage(ser, events.recording)
                 if newMsg is None:
                     # No messages, continue with the next channel's settings.
                     break
 
                 if newMsg.get("command") == MIDDSParser.COMMS_MSG_ERROR_HEAD:
                     ch.wellConfigured = False
-                    events.setError("MIDDS Error", newMsg.get("message", "(undefined)"))
+                    events.raiseError("MIDDS Error", newMsg.get("message", "(undefined)"))
                     break
 
         return True
@@ -60,7 +60,7 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
                 except Exception as e:
                     ser = None
                     events.deviceConnected = False
-                    events.setError("Serial port error", str(e))
+                    events.raiseError("Serial port error", str(e))
                     events.openSerialPort.clear()
                     continue
 
@@ -76,10 +76,21 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
                 applyChannelsConfiguration(ser)
                 events.applyConfiguration.clear()
 
+            if events.startRecording.is_set():
+                events.recording = True
+                MIDDSParser.createNewRecordingFile()
+                events.raiseMessage("Started recording", f"The recording will be stored in '{MIDDSParser.recordingFileName}'.")
+                events.startRecording.clear()
+
+            if events.stopRecording.is_set():
+                events.recording = False
+                events.raiseMessage("Stopped recording", f"The recording is saved in '{MIDDSParser.recordingFileName}'.")
+                events.stopRecording.clear()
+
             if ser is not None:
                 try:
                     while True:
-                        newMsg = MIDDSParser.decodeMessage(ser)
+                        newMsg = MIDDSParser.decodeMessage(ser, events.recording)
                         if newMsg is None:
                             break
 
@@ -103,7 +114,7 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
                 except Exception as e:
                     ser = None
                     events.deviceConnected = False
-                    events.setError("Serial port error", str(e))
+                    events.raiseError("Serial port error", str(e))
                     print(traceback.format_exc())
 
             time.sleep(5e-3)

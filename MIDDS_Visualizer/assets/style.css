@@ -303,10 +303,9 @@ hr {
     position: fixed;
     top: 60px;
     right: 10px;
-    background: red;
     color: white;
     padding: 10px;
-    border: 2px solid #c00;
+    border: 2px solid;
     border-radius: 5px;
     max-width: 300px;
     min-height: 60px;
@@ -317,6 +316,16 @@ hr {
 
     animation: enableAndFadeIn 0.3s ease-in-out forwards;
     pointer-events: all;
+}
+
+.error-scheme {
+    background: red;
+    border-color: #c00;
+}
+
+.message-scheme {
+    background: #7b803e;
+    border-color: #585e0e;
 }
 
 .error-message-div.hidden {

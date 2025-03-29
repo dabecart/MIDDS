@@ -10,21 +10,35 @@ class GUI2BackendEvents:
         self.startRecording = threading.Event()
         self.stopRecording = threading.Event()
         self.applyConfiguration = threading.Event()
+
         self.newMIDDSError = threading.Event()
+        self.newMIDDSMessage = threading.Event()
 
         self.errTitle:              str             = ""
         self.errDate:               datetime|None   = None
         self.errContent:            str             = ""
+
+        self.msgTitle:              str             = ""
+        self.msgDate:               datetime|None   = None
+        self.msgContent:            str             = ""
 
         self.deviceConnected:       bool            = False
         self.recording:             bool            = False
 
         self.lastCommandRequest:    float           = time.perf_counter()
 
-    def setError(self, errTitle: str, errContent: str):
+    def raiseError(self, errTitle: str, errContent: str):
         self.errDate = datetime.now()
-        self.errTitle = errTitle
+        self.errTitle = errTitle 
         self.errContent = errContent
         self.newMIDDSError.set()
         
-        print(f"{self.errTitle}: {self.errContent}")
+        print(f"ERROR: {self.errTitle}: {self.errContent}")
+
+    def raiseMessage(self, msgTitle: str, msgContent: str):
+        self.msgDate = datetime.now()
+        self.msgTitle = msgTitle
+        self.msgContent = msgContent
+        self.newMIDDSMessage.set()
+        
+        print(f"MESSAGE: {self.msgTitle}: {self.msgContent}")

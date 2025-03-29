@@ -17,6 +17,7 @@ class GUI:
 
         self.temporalConfig: ProgramConfiguration = copy.deepcopy(config)
         self.changesToApply: bool = False
+        self.suppressChannelOptionsUpdate = False
 
         self.selectedChannelNumber:   int = 0
 
@@ -53,7 +54,9 @@ class GUI:
             template='plotly_dark',
             margin=dict(l=20, r=20, t=20, b=20),
             showlegend=True,
-            transition={'duration': 200}
+
+            # Transition breaks the autorange function...
+            # transition={'duration': 200}
         )
 
         # App layout
@@ -192,6 +195,11 @@ class GUI:
             prevent_initial_call=True,
         )
         def toggleRecording(n_clicks):
+            if not self.events.deviceConnected:
+                self.events.raiseError("Cannot record",
+                                       "Connect to MIDDS first by entering the serial port and clicking the 'Connect' button.")
+                return
+                
             if self.events.recording:
                 # The computer is recording and by clicking, the user is requesting to stop.
                 self.events.stopRecording.set()
@@ -201,14 +209,15 @@ class GUI:
         @self.app.callback(
             Output("record-btn", "children"),
             Output("record-btn", "className"),
-            Input("interval-component", "n_intervals")
+            Input("interval-component", "n_intervals"),
+            prevent_initial_call=True
         )
         def updateRecordButton(n):
             if self.events.startRecording.is_set() or self.events.stopRecording.is_set():
                 return dcc.Loading(id="loading-display", display="show"), "record-btn"
 
-            if self.events.recording:
-                return "■ Recording", "record-btn connected"
+            if self.events.recording and self.events.deviceConnected:
+                return "⬜ Recording", "record-btn connected"
             else:
                 return "⏺ Record", "record-btn"
 
@@ -221,6 +230,10 @@ class GUI:
             if self.events.deviceConnected:
                 # The device is connected and by clicking, the user is requesting to disconnect.
                 self.events.closeSerialPort.set()
+                if self.events.recording:
+                    # If the device is being recorded and a disconnection is requested, stop the 
+                    # recording too.
+                    self.events.stopRecording.set()
             else:
                 self.events.openSerialPort.set()
         
@@ -307,7 +320,7 @@ class GUI:
         )
         def applyNewConfiguration(n_clicks):
             if not self.events.deviceConnected:
-                self.events.setError("Cannot apply configuration",
+                self.events.raiseError("Cannot apply configuration",
                                      "Connect to MIDDS first by entering the serial port and clicking the 'Connect' button.")
                 raise PreventUpdate
 
@@ -334,9 +347,11 @@ class GUI:
         # Callback for GPIO options.
         @self.app.callback(
             Output('gpio-options', 'children'),
-            Input('gpio-mode', 'value')
+            Input('gpio-mode', 'value'),
         )
         def updateGPIOOptions(mode):
+            # The update of gpio-options should not trigger the updateAddToFreqGraph callback.
+            self.suppressChannelOptionsUpdate = True
             if mode == "IN":
                 return html.Div([
                     dcc.Checklist(id="gpio-options-list", 
@@ -350,12 +365,16 @@ class GUI:
             Output('gpio-options-list', 'value'),
             Output("apply-config", "className", allow_duplicate=True),
 
-            Input("gpio-channel", "value"),
+            State("gpio-channel", "value"),
             Input("gpio-options-list", "value"),
             prevent_initial_call=True,
             suppress_callback_exceptions=True
         )
         def updateAddToFreqGraph(channel, inChecklist):
+            if self.suppressChannelOptionsUpdate:
+                self.suppressChannelOptionsUpdate = False
+                raise PreventUpdate
+
             selChannel = self.temporalConfig.getChannel(channel)
             if selChannel is None:
                 raise PreventUpdate
@@ -384,11 +403,15 @@ class GUI:
             Output("input-channels", "children"),
             Output("output-channels", "children"),
             
-            Input("interval-component", "n_intervals")
+            Input("interval-component", "n_intervals"),
+            State('freq-graph', 'figure')
         )
-        def updateWidgets(n):
+        def updateWidgets(n, f):
             if not self.events.deviceConnected:
                 raise PreventUpdate
+            
+            # Update the figure with the settings of the client side.
+            self.fig = go.Figure(f)
 
             # fig = go.Figure()
             figUpdated: bool = False
@@ -421,31 +444,50 @@ class GUI:
                         ], className="gpio-widget")
                     )
 
-                if ch.mode == "IN" and ch.modeSettings.get("INPlotFreqInGraph", False):
+                plotInFreqGraph = ch.modeSettings.get("INPlotFreqInGraph", False)
+                channelNameInGraph = f'Ch. {ch.number:02}'
+                # list of traces with the name "channelNameInGraph".
+                foundMatches = list(self.fig.select_traces(selector=dict(name=channelNameInGraph)))
+
+                if not plotInFreqGraph and len(foundMatches) > 0:
+                    # Remove the trace from the graph if it's not set to plot.
+                    for i, trace in enumerate(self.fig['data']):
+                        if 'name' in trace and trace['name'] == channelNameInGraph:
+                            # self.fig['data] returns a tuple. Remove the trace from it.
+                            dataList = list(self.fig['data'])
+                            del dataList[i]
+                            self.fig['data'] = tuple(dataList)
+                            break
+                    
+                if plotInFreqGraph and ch.mode == "IN":
                     if len(ch.freqs) <= 0:
                         continue
 
-                    xPoints = list(ch.freqsUpdates)
-                    yPoints = list(ch.freqs)
+                    xPoints = tuple(ch.freqsUpdates)
+                    yPoints = tuple(ch.freqs)
 
-                    channelName = f'Ch. {ch.number:02}'
-                    if any(self.fig.select_traces(selector=dict(name=channelName))):
+                    if len(foundMatches) > 0:
                         # If the trace is on the graph, update it.
-                        self.fig.update_traces(
-                            selector=dict(name=channelName), 
-                            patch=dict(
-                                x=xPoints,
-                                y=yPoints,
-                            )
-                        )
+                        foundMatches[0]['x'] = xPoints
+                        foundMatches[0]['y'] = yPoints
+                        
                     else:
+                        figureColors: list[str] = ['#FF6969',
+                                                   '#FFB860', 
+                                                   '#FAFF71', 
+                                                   '#8DFF76', 
+                                                   '#58F1FF', 
+                                                   '#5C9AFF', 
+                                                   '#836DFF', 
+                                                   '#FF7EFF', 
+                                                   '#FFFFA9']
                         # If the trace is not on the graph, add it.
                         self.fig.add_trace(go.Scatter(
                             x=xPoints,
                             y=yPoints,
                             mode='markers+lines',
-                            marker=dict(size=6, color='red', opacity=0.7),
-                            name=channelName
+                            marker=dict(size=6, color=figureColors[len(self.fig.data) % len(figureColors)], opacity=0.7),
+                            name=channelNameInGraph
                         ))
 
                     figUpdated = True
@@ -466,18 +508,25 @@ class GUI:
             prevent_initial_call=True
         )
         def updateErrors(n, clientServerStore):
-            if not self.events.newMIDDSError.is_set():
+            if not self.events.newMIDDSError.is_set() and not self.events.newMIDDSMessage.is_set():
                 raise PreventUpdate
 
-            self.events.newMIDDSError.clear()
-
             loadedStore = json.loads(clientServerStore)
-            loadedStore['error-message-div'] = 'error-message-div'
+            if self.events.newMIDDSError.is_set():
+                self.events.newMIDDSError.clear()
+                # Remove the hidden class from error-message-div and add the color scheme.
+                loadedStore['error-message-div'] = 'error-message-div error-scheme'
+                return self.events.errTitle, \
+                       self.events.errDate.strftime("%m/%d/%Y, %H:%M:%S"), \
+                       self.events.errContent, json.dumps(loadedStore)
 
-            # Remove the hidden class from error-message-div.
-            return self.events.errTitle, \
-                   self.events.errDate.strftime("%m/%d/%Y, %H:%M:%S"), \
-                   self.events.errContent, json.dumps(loadedStore)
+
+            if self.events.newMIDDSMessage.is_set():
+                self.events.newMIDDSMessage.clear()
+                loadedStore['error-message-div'] = 'error-message-div message-scheme'
+                return self.events.msgTitle, \
+                       self.events.msgDate.strftime("%m/%d/%Y, %H:%M:%S"), \
+                       self.events.msgContent, json.dumps(loadedStore)
 
         @self.app.callback(
             Output('error-message-div', 'className'),

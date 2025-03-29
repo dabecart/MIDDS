@@ -123,7 +123,7 @@ class MIDDSChannel:
         return [keyName for keyName, value in self.modeSettings.items() if value]
 
     @classmethod
-    def cast_dict_to_dataclass(cls, data):
+    def castDictToDataclass(cls, data):
         casted_data = {}
         for field in dataclasses.fields(cls):
             field_type = field.type
