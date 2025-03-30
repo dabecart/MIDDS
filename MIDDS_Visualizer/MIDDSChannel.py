@@ -19,7 +19,8 @@ class MIDDSChannel:
     
     _channelLevel:          str         = "?"
     lastLevelUpdate:        datetime    = datetime.now()
-    _frequency:             float       = 0.0
+    _frequency:             float       = -1.0
+    _dutyCycle:             float       = -1.0
     lastFrequencyUpdate:    datetime    = datetime.now()
 
     levels:         deque               = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_POINTS))
@@ -44,19 +45,29 @@ class MIDDSChannel:
 
     @property
     def frequency(self) -> float:
-        dt = datetime.now() - self.lastLevelUpdate
+        dt = datetime.now() - self.lastFrequencyUpdate
         if dt.total_seconds() > MIDDSChannel.TIMEOUT_UNTIL_UNKNOWN_LEVEL_s:
-            return f"{self._frequency:.4g}"
+            return "?"
         else:
-            return self._frequency
+            return f"{self._frequency:.8f}"
     
-    @frequency.setter
-    def frequency(self, val: float):
+    @property
+    def dutyCycle(self) -> float:
+        dt = datetime.now() - self.lastFrequencyUpdate
+        if dt.total_seconds() > MIDDSChannel.TIMEOUT_UNTIL_UNKNOWN_LEVEL_s:
+            return "?"
+        else:
+            return f"{self._dutyCycle:.8f}"
+
+    def setFrequencyAndDutyCycle(self, freq: float, dutyCycle: float, time: datetime):
+        self._frequency = freq
+        self._dutyCycle = dutyCycle
+        # Use the now datetime so that if the MIDDS is set to an older UNIX base time it is still
+        # shown on the interface.
         self.lastFrequencyUpdate = datetime.now()
-        self._frequency = val
         
         self.freqs.append(self._frequency)
-        self.freqsUpdates.append(self.lastFrequencyUpdate)
+        self.freqsUpdates.append(time)
 
     @property
     def signalType(self) -> str:
@@ -90,7 +101,11 @@ class MIDDSChannel:
                 else:
                     self.channelLevel = "?"
             elif msgCommand == MIDDSParser.COMMS_MSG_FREQ_HEAD:
-                self.frequency = values.get("frequency", -1.0)
+                self.setFrequencyAndDutyCycle(
+                    freq        = values.get("frequency", -1.0),
+                    dutyCycle   = values.get("dutyCycle", -1.0),
+                    time        = values.get("time", datetime.now()),
+                )
 
     def filterModeSettings(self):
         # The channel options always start with the channel mode code ("IN", "OU"...).
@@ -111,6 +126,7 @@ class MIDDSChannel:
         del toSaveDict['TIMEOUT_UNTIL_UNKNOWN_LEVEL_s']
         del toSaveDict['_channelLevel']
         del toSaveDict['_frequency']
+        del toSaveDict['_dutyCycle']
         del toSaveDict['lastLevelUpdate']
         del toSaveDict['lastFrequencyUpdate']
         del toSaveDict['levels']

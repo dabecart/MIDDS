@@ -127,9 +127,10 @@ The MIDDS protocol has been designed to be as quick and lightweight as possible 
 - There is no acknowledgement between messages:
   - If the message is not well formatted, the receiving end of the communication should discard it. MIDDS will generate an error message on this cases.
   - A message must be fully correct for the MIDDS to apply it. If even a minor field is not formatted accordingly, MIDDS will not apply any changes to its internal configuration.
-- The **time** fields works as:
-  - *Delay time* when the message is sent from the PC to MIDDS.
-  - *Response Timestamp* when the message is sent from MIDDS to the PC.
+
+A `time` field is a 64-bit unsigned integer which stores [UMIX time](https://en.wikipedia.org/wiki/Unix_time) in **nanoseconds**. Depending on the sender of the message, this field operates as:
+  - *Execution time*, when the message is sent from the PC to MIDDS. When the time of MIDDS reaches this execution time, the command will be executed. This time is absolute! If an execution time which has already passed is given to a command, the command will be executed immediately. It is recommended to use an execution time of zero for the command to be executed immediately. 
+  - *Response Timestamp*, when the message is sent from MIDDS to the PC. Timestamps the time when the content of the message was calculated/generated.
 
 ## Commands/Messages
 
@@ -164,10 +165,10 @@ Sets the value of an *output* channel. This output can be instant or delayed unt
 
 ### Frequency (`F`)
 
-Gives the frequency of a MIDDS *input* or *monitoring* channel. This read can be instant or delayed until a certain time.
+Gives the frequency of a MIDDS *input* channel. This read can be instant or delayed until a certain time.
 - Sent by the computer and answered by MIDDS.
-- If this command is sent to an *output* or *disabled* channel, it will be discarded.
-- Command format. 20 bytes long.
+- If this command is sent to anything other than an *input* channel, it will be discarded.
+- Command format. 28 bytes long.
   
 | Field              | Value                                | Type     | Byte size | Byte Offset |
 |--------------------|--------------------------------------|--------  |-----------|-------------|
@@ -175,7 +176,8 @@ Gives the frequency of a MIDDS *input* or *monitoring* channel. This read can be
 | Command descriptor | `F`                                  | `char`   | 1         | 1           |
 | Channel number     | `00` to `99`                         | `char`   | 2         | 2           |
 | Frequency          | PC: do not care<br>MIDDS: `Hz`       | `double` | 8         | 4           |
-| Time               | ---                                  | `time`   | 8         | 12           |
+| Duty cycle         | PC: do not care<br>MIDDS: `%`        | `double` | 8         | 12          |
+| Time               | ---                                  | `time`   | 8         | 20          |
 
 ### Monitor (`M`)
 
@@ -198,7 +200,7 @@ timestamps.
   
 ### Settings (`S`)
 
-The settings command is used to change the configuration of the MIDDS. All settings commands must start with `$S` plus another letter, which specifies the type of setting is being commanded.
+The settings command is used to change the configuration of the MIDDS. All settings commands must start with `$S` plus another letter, which specifies the type of setting that is being commanded.
 
 #### Channel Settings (`SC`)
 
@@ -231,33 +233,42 @@ Sets the configuration of a channel of the MIDDS.
 
 #### SYNC Settings (`SY`)
 
-This command sets the time of reference for a SYNC pulse, its frequency and duty cycle. As previously noted, the MIDDS' time starts counting from the initialization sequence (if no SYNC is present) or from the first SYNC pulse after the initialization sequence, setting its internal time to zero on this first pulse. With this command, you may set the exact `time` of the previous SYNC rising or falling pulse.
+This command sets the time of reference for a SYNC pulse, its frequency and duty cycle. As previously noted, the MIDDS' time starts counting from the initialization sequence (if no SYNC is present) or from the first SYNC pulse after the initialization sequence, setting its internal time to zero on this first pulse. With this command, you may set the exact `time` of the next SYNC rising pulse. If you want to set the time of the system without use of a SYNC pulse, you may set the SYNC Channel number as -1 (frequency and duty cycles will be ignored for this command, but must fall within the allowed ranges). `time` = -1 (or `0xFFFFFFFFFFFFFFFF`) is reserved and should not be used.
 
-- Command format. 23 bytes long.
+- Command format. 29 bytes long.
 
-| Field                 | Value                    | Type   | Byte size | Byte Offset |
-|-----------------------|--------------------------|--------|-----------|-------------|
-| Start character       | `$`                      | `char` | 1         | 0           |
-| Command descriptor    | `S`                      | `char` | 1         | 1           |
-| Subcommand descriptor | `Y`                      | `char` | 1         | 2           |
-| SYNC Channel Number   | `00` to `99`             | `char` | 2         | 3           |
-| Frequency             | `00.01` to `99.99` Hz    | `char` | 5         | 5           |
-| Duty cycle            | `00.01` to `99.99` %     | `char` | 5         | 10          |
-| Time                  | ---                      | `time` | 8         | 15          |
+| Field                 | Value                    | Type     | Byte size | Byte Offset |
+|-----------------------|--------------------------|----------|-----------|-------------|
+| Start character       | `$`                      | `char`   | 1         | 0           |
+| Command descriptor    | `S`                      | `char`   | 1         | 1           |
+| Subcommand descriptor | `Y`                      | `char`   | 1         | 2           |
+| SYNC Channel Number   | `00` to `99` (or `-1`)   | `char`   | 2         | 3           |
+| Frequency             | [00.01 Hz, 100.00 Hz]    | `double` | 8         | 5           |
+| Duty cycle            | (0%, 100%)               | `double` | 8         | 13          |
+| Time                  | ---                      | `time`   | 8         | 21          |
 
-#### Error Message
+### Error Message (`E`)
 
 This message is sent by the MIDDS when there's an internal error/warning. The message is delimited 
 by a new line character `\n`. The maximum length of the message is 63 characters plus one for the
 new line.
 
-- Command format. Minimum 3 bytes.
+- Command format. Minimum 3 bytes, maximum 66 bytes.
 
 | Field                 | Value                    | Type     | Byte size | Byte Offset |
 |-----------------------|--------------------------|----------|-----------|-------------|
 | Start character       | `$`                      | `char`   | 1         | 0           |
 | Command descriptor    | `E`                      | `char`   | 1         | 1           |
 | Message               | ---                      | `char[]` | n < 64    | 2           |
+
+### Connect (`CONN`)
+
+To start communications with MIDDS, send the `$CONN` command. MIDDS will respond with the current 
+software version: `Coonected to PROTO MIDDS vx.x\n`.
+
+### Disconnect (`DISC`)
+
+To end communications with MIDDS, send the `$DISC` command. MIDDS will set all channels as disabled, it will send a `Disconnected\n` message and stop sending data through the serial port. 
 
 <!-- ## I/O Organization
 

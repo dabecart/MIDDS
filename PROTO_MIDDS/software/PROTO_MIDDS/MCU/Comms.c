@@ -28,14 +28,14 @@ void initComms() {
 }
 
 void receiveData() {
-    static uint8_t outMsg[COMMS_MAX_MSG_LEN];
+    static uint8_t inMsgBuffer[COMMS_MAX_MSG_INPUT_LEN];
     uint8_t peekChar;
 
     while(inputBuffer.len > 0) {
         peek_cb(&inputBuffer, &peekChar);
         if(peekChar == COMMS_MSG_SYNC) {
-            peekN_cb(&inputBuffer, inputBuffer.len, outMsg);
-            int32_t decodeReturn = decodeGPIOMessage(outMsg, inputBuffer.len);
+            peekN_cb(&inputBuffer, inputBuffer.len, inMsgBuffer);
+            int32_t decodeReturn = decodeGPIOMessage(inMsgBuffer, inputBuffer.len);
             if(decodeReturn == COMMS_DECODE_NOT_ENOUGH_DATA) {
                 // Do not discard any data. Exit the function and come back later.
                 return;
@@ -45,7 +45,7 @@ void receiveData() {
                 pop_cb(&inputBuffer, &peekChar);
             }else if(decodeReturn >= 0) {
                 // The message was well structured and it was (or was not) well executed.
-                popN_cb(&inputBuffer, decodeReturn, outMsg);
+                popN_cb(&inputBuffer, decodeReturn, inMsgBuffer);
             }else {
                 // This part should not be entered...
                 pop_cb(&inputBuffer, &peekChar);
@@ -233,6 +233,10 @@ uint16_t encodeFrequency(const ChannelFrequency* dataStruct, uint8_t* outBuffer)
                             dataStruct->channel);
     memcpy(outBuffer + len, &dataStruct->frequency, sizeof(dataStruct->frequency));
     len += sizeof(dataStruct->frequency);
+
+    memcpy(outBuffer + len, &dataStruct->dutyCycle, sizeof(dataStruct->dutyCycle));
+    len += sizeof(dataStruct->dutyCycle);
+    
     memcpy(outBuffer + len, &dataStruct->time, sizeof(dataStruct->time));
     return len + sizeof(dataStruct->time);
 }
@@ -323,8 +327,24 @@ uint8_t decodeSettingsChannel(const uint8_t* dataBuffer, ChannelSettingsChannel 
 uint8_t decodeSettingsSync(const uint8_t* dataBuffer, ChannelSettingsSYNC *decodedMsg) {
     if((dataBuffer == NULL) || (decodedMsg == NULL)) return 0;
 
-    // TODO
-    return 0;
+    decodedMsg->command     = COMMS_MSG_SYNC_SETT_HEAD[0];
+    decodedMsg->subCommand  = COMMS_MSG_SYNC_SETT_HEAD[1];
+    sscanf((char*) dataBuffer + 3, "%2ld", &decodedMsg->channel);
+    
+    memcpy(&decodedMsg->frequency, dataBuffer + 5, sizeof(decodedMsg->frequency));
+    if((decodedMsg->frequency < COMMS_SYNC_MIN_FREQ) || 
+       (decodedMsg->frequency > COMMS_SYNC_MAX_FREQ)) {
+        return 0;
+    }
+    
+    memcpy(&decodedMsg->dutyCycle, dataBuffer + 13, sizeof(decodedMsg->dutyCycle));
+    if((decodedMsg->dutyCycle < COMMS_SYNC_MIN_DUTY_CYCLE) || 
+       (decodedMsg->dutyCycle > COMMS_SYNC_MAX_DUTY_CYCLE)) {
+        return 0;
+    }
+
+    memcpy(&decodedMsg->time, dataBuffer + 21, sizeof(decodedMsg->time));
+    return 1;
 }
 
 #if MCU_TX_IN_ASCII
@@ -388,6 +408,7 @@ uint8_t executeInputCommand(const ChannelInput* cmdInput) {
         return 0;
     }
 
+    cmdResponse.input.time = convertFromInternalToUNIXTime(getMIDDSTime(&hwTimers));
     cmdResponse.input.value = readValue;
     encodeGPIOMessage(GPIO_MSG_INPUT, cmdResponse);
     return 1;
@@ -448,13 +469,16 @@ uint8_t executeFrequencyCommand(const ChannelFrequency* cmdInput) {
 
     memcpy(&cmdResponse.frequency, cmdInput, sizeof(ChannelFrequency));
     if(ch->type == CHANNEL_TIMER) {
-        cmdResponse.frequency.frequency = getChannelFrequency(ch->data.timer.timerHandler);
+        getChannelFrequencyAndDutyCycle(ch->data.timer.timerHandler, 
+                                        &cmdResponse.frequency.frequency, 
+                                        &cmdResponse.frequency.dutyCycle);
     }else {
         // TODO: Make it so that GPIOs can also return frequency.
         sendErrorMessage(COMMS_ERROR_INVALID_MODE);
         return 0;
     }
 
+    cmdResponse.frequency.time = convertFromInternalToUNIXTime(getMIDDSTime(&hwTimers));
     encodeGPIOMessage(GPIO_MSG_FREQUENCY, cmdResponse);
     return 1;
 }
@@ -482,28 +506,36 @@ uint8_t executeChannelSettingsCommand(const ChannelSettingsChannel* cmdInput) {
 }
 
 uint8_t executeSyncSettingsCommand(const ChannelSettingsSYNC* cmdInput) {
-    Channel* ch = getChannelFromNumber(cmdInput->channel);
-
-    if(ch == NULL) {
-        sendErrorMessage(COMMS_ERROR_INVALID_CHANNEL);
-        return 0;
-    }
-
-    // Only "Timer" channels can be used as SYNC.
-    if(ch->type != CHANNEL_TIMER) {
-        sendErrorMessage(COMMS_ERROR_SYNC_PARAMS);
-        return 0;
+    if(cmdInput->channel != -1UL) {
+        Channel* ch = getChannelFromNumber(cmdInput->channel);
+        if(ch == NULL) {
+            sendErrorMessage(COMMS_ERROR_INVALID_CHANNEL);
+            return 0;
+        }
+    
+        // Only "Timer" channels can be used as SYNC.
+        if(ch->type != CHANNEL_TIMER) {
+            sendErrorMessage(COMMS_ERROR_SYNC_PARAMS);
+            return 0;
+        }
     }
 
     // Frequency and duty cycle must fall within the valid range.
     if((cmdInput->frequency < COMMS_SYNC_MIN_FREQ) || (cmdInput->frequency > COMMS_SYNC_MAX_FREQ) ||
-       (cmdInput->dutyCycle < COMMS_SYNC_MIN_DUTY_CYCLE) || 
-       (cmdInput->dutyCycle > COMMS_SYNC_MAX_DUTY_CYCLE)) {
+       (cmdInput->dutyCycle <= COMMS_SYNC_MIN_DUTY_CYCLE) || 
+       (cmdInput->dutyCycle >= COMMS_SYNC_MAX_DUTY_CYCLE)) {
         sendErrorMessage(COMMS_ERROR_SYNC_PARAMS);
         return 0;
     }
 
-    setSyncParameters(&hwTimers, cmdInput->frequency, cmdInput->frequency, cmdInput->channel);
+    // SYNC Time of -1 is reserved.
+    if(cmdInput->time == -1ULL) {
+        sendErrorMessage(COMMS_ERROR_SYNC_PARAMS);
+        return 0;
+    }
+
+    setSyncParameters(&hwTimers, cmdInput->frequency, cmdInput->frequency, 
+                      cmdInput->channel, convertFromUNIXTimeToInternal(cmdInput->time));
     return 1;
 }
 
@@ -514,7 +546,7 @@ void sendErrorMessage(const char* errorMsg) {
 }
 
 void establishConnection(uint8_t connect) {
-    const char* WELCOME_MSG = "Connected to PROTO_MIDDS v.0.1\n";
+    const char* WELCOME_MSG = "Connected to PROTO MIDDS v.0.1\n";
     const char* DISCONNECTION_MSG = "Disconnected\n";
 
     usbConnected = connect;
@@ -523,7 +555,27 @@ void establishConnection(uint8_t connect) {
         empty_cb(&outputBuffer);
         pushN_cb(&outputBuffer, (uint8_t*) WELCOME_MSG, strlen(WELCOME_MSG));
     }else {
+        // Set all channels as disabled.
+        for(int i = 0; i < CH_COUNT; i++) {
+            Channel* ch = getChannelFromNumber(i);
+            if(ch == NULL) continue;
+
+            ch->mode = CHANNEL_DISABLED;
+            applyChannelConfiguration(ch);
+        }
+        setShiftRegisterValues(&chCtrl);
+
         // Transmit disconnection message.
         while(CDC_Transmit_FS((uint8_t*) DISCONNECTION_MSG, strlen(DISCONNECTION_MSG)) == USBD_BUSY){}
     }
+}
+
+uint64_t convertFromInternalToUNIXTime(uint64_t tIn) {
+    const double inToOutFactor = 1e9 / ((double) MCU_FREQUENCY);
+    return tIn * inToOutFactor;
+}
+
+uint64_t convertFromUNIXTimeToInternal(uint64_t tEx) {
+    const double outToInFactor = ((double) MCU_FREQUENCY) / 1e9;
+    return tEx * outToInFactor;
 }

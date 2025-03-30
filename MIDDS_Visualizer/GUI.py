@@ -429,9 +429,10 @@ class GUI:
                     inputWidgets.append(
                         html.Div([
                             html.P(title),
-                            html.P(f"Level: {ch.channelLevel}"),
-                            html.P(f"Freq:  {ch.frequency}"),
-                            html.P(f"Signal type:  {ch.signalType}")
+                            html.P(ch.signalType),
+                            html.P(f"Level:      {ch.channelLevel}"),
+                            html.P(f"Frequency:  {ch.frequency} Hz"),
+                            html.P(f"Duty cycle: {ch.dutyCycle} %"),
                         ], className="gpio-widget")
                     )
                 elif ch.mode == "OU":
@@ -472,21 +473,24 @@ class GUI:
                         foundMatches[0]['y'] = yPoints
                         
                     else:
-                        figureColors: list[str] = ['#FF6969',
-                                                   '#FFB860', 
-                                                   '#FAFF71', 
-                                                   '#8DFF76', 
-                                                   '#58F1FF', 
-                                                   '#5C9AFF', 
-                                                   '#836DFF', 
-                                                   '#FF7EFF', 
-                                                   '#FFFFA9']
                         # If the trace is not on the graph, add it.
+                        figureColors: tuple[str] = ('#FF6969',
+                                                    '#FFB860', 
+                                                    '#FAFF71', 
+                                                    '#8DFF76', 
+                                                    '#58F1FF', 
+                                                    '#5C9AFF', 
+                                                    '#836DFF', 
+                                                    '#FF7EFF', 
+                                                    '#FFFFA9')
+                        
                         self.fig.add_trace(go.Scatter(
                             x=xPoints,
                             y=yPoints,
                             mode='markers+lines',
-                            marker=dict(size=6, color=figureColors[len(self.fig.data) % len(figureColors)], opacity=0.7),
+                            marker=dict(size=6, 
+                                        color=figureColors[len(self.fig.data) % len(figureColors)], 
+                                        opacity=0.7),
                             name=channelNameInGraph
                         ))
 

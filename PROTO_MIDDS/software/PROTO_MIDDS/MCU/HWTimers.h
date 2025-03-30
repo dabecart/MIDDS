@@ -21,7 +21,10 @@
 
 #include "CircularBuffer64.h"
 
-#define HW_TIMER_CHANNEL_COUNT 14
+#define HW_TIMER_CHANNEL_COUNT                  14
+#define HW_TIMER_GOOD_SYNCS_UNTIL_SYNCHRONIZED  3
+#define HW_TIMER_MIN_SAMPLES_NEEDED             10
+#define HW_TIMER_TICKS_UNTIL_FREQ_RECALCULATE   30000 // ticks = ms
 
 // Related data and timestamps of a single Hardware Timer.
 typedef struct HWTimerChannel {
@@ -32,8 +35,12 @@ typedef struct HWTimerChannel {
     uint32_t            gpioPin;
     uint8_t             isSYNC;
 
-    uint16_t            channelNumber;             
+    uint16_t            channelNumber;
     uint32_t            lastPrintTick;
+
+    double              lastFrequency;
+    double              lastDutyCycle;
+    uint32_t            lastFrequencyCalculationTick;
 
     CircularBuffer64    data;
 } HWTimerChannel;
@@ -44,6 +51,9 @@ typedef struct HWTimers {
     TIM_HandleTypeDef*  htim2;
     TIM_HandleTypeDef*  htim3;
     TIM_HandleTypeDef*  htim4;
+
+    // Holds a pointer to the master timer.
+    TIM_HandleTypeDef* htimMaster;
 
     float       frequencySYNC;
     float       dutyCycleSYNC;
@@ -93,12 +103,14 @@ void initHWTimer_(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timCh
 /**************************************** FUNCTION *************************************************
  * @brief Set the SYNC signal parameters.
  * @param htimers. Pointer to the HWTimers struct containing all data related to timers.
- * @param frequency. Frequency of the SYNC signal. 
- * @param dutyCycle. Duty cycle of the SYNC signal.
+ * @param frequency. Frequency of the SYNC signal (Hz). 
+ * @param dutyCycle. Duty cycle of the SYNC signal (%).
  * @param syncChNumber. The SYNC channel number. There can only be one channel set as SYNC. If the
- * channel number is not valid, the SYNC pin won't change.
+ * channel number is not valid, the SYNC will be set as disabled.
+ * @param newSyncTime. The new sync time for the next rising pulse.
 ***************************************************************************************************/
-void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle, uint32_t syncChNumber);
+void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle, 
+                       uint32_t syncChNumber, uint64_t newSyncTime);
 
 /**************************************** FUNCTION *************************************************
  * @brief Initialize all ISR related to the Hardware Timers.
@@ -126,7 +138,22 @@ uint8_t readyToPrintHWTimer(HWTimerChannel* hwTimer);
 ***************************************************************************************************/
 void setHWTimerEnabled(HWTimerChannel* hwTimer, uint8_t enabled);
 
-double getChannelFrequency(HWTimerChannel* hwTimer);
+/**************************************** FUNCTION *************************************************
+ * @brief Calculates the frequency and duty cycle of a hardware timer by using its timestamps. 
+ * Warning: it clears the timestamps array! It should not be used on any other than input channels.
+ * @param hwTimer. Pointer to the HWTimer to calculate its frequency.
+ * @param frequency. Where the frequency will be stored.
+***************************************************************************************************/
+void getChannelFrequencyAndDutyCycle(HWTimerChannel* hwTimer, 
+                                     double* frequency, double* dutyCycle);
+
+/**************************************** FUNCTION *************************************************
+ * @brief Returns the MIDDS time. This time's format is UNIX time in nanoseconds and is synchronized
+ * with the SYNC input.
+ * @param hwTimers. Pointer to the HWTimers.
+ * @return The MIDDS time.
+***************************************************************************************************/
+uint64_t getMIDDSTime(HWTimers* htimers);
 
 /**************************************** FUNCTION *************************************************
  * @brief Gets the stored value in a TIM capture input register and stores it in the related 
@@ -150,8 +177,5 @@ void captureInputISR_(TIM_HandleTypeDef* htim);
  * @param htim. Timer handler that is requesting the ISR.
 ***************************************************************************************************/
 void restartMasterTimerISR_(TIM_HandleTypeDef* htim);
-
-// Defined in MainMCU.h
-extern HWTimers hwTimers;
 
 #endif // HW_TIMERS_h

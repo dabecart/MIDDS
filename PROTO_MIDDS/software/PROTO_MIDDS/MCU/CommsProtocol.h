@@ -19,12 +19,12 @@
 
 #define COMMS_MSG_INPUT_LEN          13
 #define COMMS_MSG_OUTPUT_LEN         13
-#define COMMS_MSG_FREQ_LEN           20
+#define COMMS_MSG_FREQ_LEN           28
 #define COMMS_MSG_CHANNEL_SETT_LEN   8
-#define COMMS_MSG_SYNC_SETT_LEN      23
+#define COMMS_MSG_SYNC_SETT_LEN      29
 
-#define COMMS_MIN_MSG_LEN            COMMS_MSG_CHANNEL_SETT_LEN
-#define COMMS_MAX_MSG_LEN            COMMS_MSG_SYNC_SETT_LEN
+#define COMMS_MIN_MSG_LEN            5 // $CONN or $DISC
+#define COMMS_MAX_MSG_INPUT_LEN      COMMS_MSG_SYNC_SETT_LEN
 
 #define COMMS_MSG_INPUT_HEAD         "I"
 #define COMMS_MSG_OUTPUT_HEAD        "O"
@@ -55,8 +55,8 @@
 
 #define COMMS_SYNC_MIN_FREQ         00.01
 #define COMMS_SYNC_MAX_FREQ         99.99
-#define COMMS_SYNC_MIN_DUTY_CYCLE   00.01
-#define COMMS_SYNC_MAX_DUTY_CYCLE   99.99
+#define COMMS_SYNC_MIN_DUTY_CYCLE   0
+#define COMMS_SYNC_MAX_DUTY_CYCLE   100.0
 
 #define COMMS_ERROR_INVALID_CHANNEL      "RR_INVALID_CHANNEL"
 #define COMMS_ERROR_INVALID_MODE         "RR_INVALID_MODE"
@@ -106,7 +106,7 @@ typedef struct ChannelInput {
     uint8_t         command;
     uint32_t        channel;
     ChannelValue    value;
-    double          time;
+    uint64_t        time;
 } ChannelInput;
 
 // Struct of Output messages
@@ -114,7 +114,7 @@ typedef struct ChannelOutput {
     uint8_t         command;
     uint32_t        channel;
     ChannelValue    value;
-    double          time;
+    uint64_t        time;
 } ChannelOutput;
 
 // Struct of Monitor messages (Not used).
@@ -130,7 +130,8 @@ typedef struct ChannelFrequency {
     uint8_t     command;
     uint32_t    channel;
     double      frequency;
-    double      time;
+    double      dutyCycle;
+    uint64_t    time;
 } ChannelFrequency;
 
 // Struct of Settings: Channel messages.
@@ -149,7 +150,7 @@ typedef struct ChannelSettingsSYNC{
     uint32_t    channel;
     double      frequency;
     double      dutyCycle;
-    double      time;
+    uint64_t    time;
 } ChannelSettingsSYNC;
 
 // Struct of error messages.

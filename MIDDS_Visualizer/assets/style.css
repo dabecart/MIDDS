@@ -287,15 +287,32 @@ hr {
 }
 
 .gpio-widget {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
     border: 2px solid #444;
     border-radius: 2px;
     padding: 4px;
+    gap: 4px;
 }
 
-.gpio-widget p {
-    margin: 2px;
+.gpio-widget p:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
+}
+
+.gpio-widget p:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+}
+
+.gpio-widget p:nth-child(3),
+.gpio-widget p:nth-child(4),
+.gpio-widget p:nth-child(5) {
+    grid-column: span 2;
+    text-align: start;
 }
 
 /* Error Message */

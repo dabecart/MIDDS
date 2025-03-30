@@ -6,6 +6,7 @@ from GUI import GUI
 import serial
 import time
 import traceback
+from datetime import datetime
 
 CONFIG_ROUTE = "config.ini"
 
@@ -46,6 +47,8 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
             if events.closeSerialPort.is_set():
                 if ser is not None:
                     ser.write(b"$DISC")
+                    time.sleep(0.1)
+                    print(ser.readline())
 
                     ser.close()
                     ser = None
@@ -66,6 +69,21 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
 
                 # Stablish connection.
                 ser.write(b"$CONN")
+
+                time.sleep(0.1)
+
+                # Read the connected to PROTO MIDDS message.
+                print(ser.readline())
+
+                # Set the time of the MIDDS without setting its SYNC channel. 
+                ser.write(
+                    MIDDSParser.encodeSettingsSYNC(
+                        channel   = -1,
+                        frequency = 1.0,
+                        dutyCycle = 50.0,
+                        time=datetime.now()
+                    )
+                )
 
                 events.deviceConnected = True
 

@@ -198,6 +198,20 @@ void sendErrorMessage(const char* errorMsg);
 ***************************************************************************************************/
 void establishConnection(uint8_t connect);
 
+/**************************************** FUNCTION *************************************************
+ * @brief Converts from internal time (increments of the master timer) to UNIX time in nanoseconds.
+ * @param tIn: Internal time.
+ * @return The external time.
+ ***************************************************************************************************/
+uint64_t convertFromInternalToUNIXTime(uint64_t tIn);
+
+/**************************************** FUNCTION *************************************************
+ * @brief Converts from UNIX time in nanoseconds to internal time (increments of the master timer).
+ * @param tEx: External time.
+ * @return The internal time.
+ ***************************************************************************************************/
+uint64_t convertFromUNIXTimeToInternal(uint64_t tEx);
+
 /**************************************** EXTERNALS ***********************************************/
 extern CircularBuffer inputBuffer;
 

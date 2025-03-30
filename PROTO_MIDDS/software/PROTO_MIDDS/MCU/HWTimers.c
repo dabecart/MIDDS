@@ -17,8 +17,10 @@
 volatile uint64_t coarse = 0;
 volatile uint64_t newCoarse = 0;
 volatile uint64_t lastSyncTime = 0;
-volatile uint8_t currentSyncState = 0xFF;   // 0 = Low, 1 = High, 0xFF = Unknown/Not being used.
-volatile uint8_t syncPulseCount = 0;
+volatile uint8_t  currentSyncState = 0xFF;   // 0 = Low, 1 = High, 0xFF = Unknown/Not being used.
+volatile uint8_t  syncPulseCount = 0;
+
+volatile uint64_t newSyncTime = -1;
 
 void initHWTimers(HWTimers* htimers, TIM_HandleTypeDef* htim1, TIM_HandleTypeDef* htim2, 
                   TIM_HandleTypeDef* htim3, TIM_HandleTypeDef* htim4)
@@ -29,6 +31,10 @@ void initHWTimers(HWTimers* htimers, TIM_HandleTypeDef* htim1, TIM_HandleTypeDef
     htimers->htim2 = htim2;
     htimers->htim3 = htim3;
     htimers->htim4 = htim4;
+
+    // The master time in PROTO MIDDS is the TIM1. The clock of this timer is the same being used 
+    // in all other timers.
+    htimers->htimMaster = htim1;
 
     // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
     // TIMx initialization
@@ -85,22 +91,40 @@ void initHWTimer_(HWTimerChannel* timCh, TIM_HandleTypeDef* htim, uint32_t timCh
     timCh->isSYNC = isSync;
     timCh->channelNumber = channelNumber;
     timCh->lastPrintTick = 0;
+
+    timCh->lastFrequency = -1.0;
+    timCh->lastDutyCycle = -1.0;
+    timCh->lastFrequencyCalculationTick = 0;
 }
 
-void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle, uint32_t syncChNumber) {
+void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle, 
+                       uint32_t syncChNumber, uint64_t requestSyncTime) {
     htimers->frequencySYNC = frequency;
     htimers->dutyCycleSYNC = dutyCycle;
+
+    // Convert Duty Cycle from percentage to [0, 1].
+    dutyCycle /= 100.0;
 
     htimers->idealPeriodHighSYNC = MCU_FREQUENCY*dutyCycle/hwTimers.frequencySYNC;
     htimers->idealPeriodLowSYNC  = MCU_FREQUENCY*(1.0 - dutyCycle)/hwTimers.frequencySYNC;
 
-    Channel* syncCh = getChannelFromNumber(syncChNumber);
-    if((syncCh == NULL) || (syncCh->type != CHANNEL_TIMER)) return;
-
+    // Set all channels as not SYNCs.
     for(int i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
         htimers->channels[i].isSYNC = 0;
     }
-    syncCh->data.timer.timerHandler->isSYNC = 1;
+
+    if(syncChNumber == -1UL) {
+        // Directly set the MIDDS time. By subtracting the current time, we make it so that when the
+        // current TIMx value is added to the coarse, "now" would be "newSyncTime".
+        coarse = requestSyncTime - __HAL_TIM_GET_COUNTER(htimers->htimMaster);
+        newCoarse = coarse + 0x10000ULL;
+    }else {
+        Channel* syncCh = getChannelFromNumber(syncChNumber);
+        if((syncCh == NULL) || (syncCh->type != CHANNEL_TIMER)) return;
+        syncCh->data.timer.timerHandler->isSYNC = 1;
+        newSyncTime = requestSyncTime;
+    }
+
 }
 
 void startHWTimers(HWTimers* htimers) {
@@ -142,7 +166,20 @@ void setHWTimerEnabled(HWTimerChannel* hwTimer, uint8_t enabled){
     }
 }
 
-double getChannelFrequency(HWTimerChannel* hwTimer) {
+void getChannelFrequencyAndDutyCycle(HWTimerChannel* hwTimer, 
+                                     double* frequency, double* dutyCycle) {
+    
+    if(hwTimer->data.len < HW_TIMER_MIN_SAMPLES_NEEDED) {
+        if((HAL_GetTick() - hwTimer->lastFrequencyCalculationTick) > 30000) {
+            hwTimer->lastFrequency = -1.0;
+            hwTimer->lastDutyCycle = -1.0;
+        }
+
+        *frequency = hwTimer->lastFrequency;
+        *dutyCycle = hwTimer->lastDutyCycle;
+        return;
+    }
+
     // This function can only be called on "Input" mode channels.
     double periodSum = 0, risedTimeSum = 0;
     uint64_t previousRisingTime = 0;
@@ -175,11 +212,20 @@ double getChannelFrequency(HWTimerChannel* hwTimer) {
     hwTimer->data.locked = 0;
 
     if(cycleCount > 0) {
-        double averagePeriodInSeconds = periodSum / cycleCount / ((double)MCU_FREQUENCY);
-        return 1.0 / averagePeriodInSeconds;
+        *frequency = ((double) MCU_FREQUENCY) * cycleCount / periodSum;
+        *dutyCycle = risedTimeSum * 100.0 / periodSum;
     }else {
-        return -1.0;
+        *frequency = -1.0;
+        *dutyCycle = -1.0;
     }
+
+    hwTimer->lastFrequency = *frequency;
+    hwTimer->lastDutyCycle = *dutyCycle;
+    hwTimer->lastFrequencyCalculationTick = HAL_GetTick();
+}
+
+uint64_t getMIDDSTime(HWTimers* htimers) {
+    return coarse + __HAL_TIM_GET_COUNTER(htimers->htimMaster);
 }
 
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -212,14 +258,36 @@ inline void saveTimestamp_(HWTimerChannel* channel, uint8_t addCoarseIncrement) 
         if(currentGPIOValue) {
             // If the current GPIO level is HIGH, that means that the LOW period has just occurred.
             hwTimers.measuredPeriodLowSYNC = capturedVal - lastSyncTime;
+
+            if(newSyncTime != -1) {
+                // The computer has requested to set the MIDDS time.
+                
+                // By subtracting the current time, we make it so that when the current TIMx value
+                // is added to the coarse, "now" would be "newSyncTime".
+                coarse = newSyncTime - __HAL_TIM_GET_COUNTER(channel->htim);
+                if(addCoarseIncrement) {
+                    // This request is happening during a master timer update. Recalculate the new
+                    // coarse.
+                    newCoarse = coarse + 0x10000ULL;
+                }
+
+                newSyncTime = -1;
+
+                // Set the SYNC as not synchronized.
+                currentSyncState = 0xFF;
+                syncPulseCount = -1;
+            }
         }else {
             // If the current GPIO level is LOW, that means that the HIGH period has just occurred.
             hwTimers.measuredPeriodHighSYNC = capturedVal - lastSyncTime;
         }
         lastSyncTime = capturedVal;
 
-        if(syncPulseCount >= 2) currentSyncState = currentGPIOValue;
-        else                    syncPulseCount++;
+        if(syncPulseCount >= HW_TIMER_GOOD_SYNCS_UNTIL_SYNCHRONIZED){
+            currentSyncState = currentGPIOValue;
+        }else{
+            syncPulseCount++;
+        }
     }else if(currentSyncState != 0xFF){
         // Apply SYNC corrections to pins which aren't SYNC.
         // SYNC corrections are an interpolation between the previous HIGH or LOW measured period

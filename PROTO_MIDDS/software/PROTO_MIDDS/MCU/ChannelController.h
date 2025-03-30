@@ -68,7 +68,8 @@ typedef struct ChannelController {
 void initChannelController(ChannelController* chCtrl, SPI_HandleTypeDef* hspi);
 
 /**************************************** FUNCTION *************************************************
- * @brief Applies the configuration of a channel when run.
+ * @brief Applies the configuration of a channel when run. Remember to call to 
+ * setShiftRegisterValues(&chCtrl) to apply the configuration with the shift registers.
  * @param ch. Pointer to the channel whose configuration is to be applied.
 ***************************************************************************************************/
 void applyChannelConfiguration(Channel* ch);

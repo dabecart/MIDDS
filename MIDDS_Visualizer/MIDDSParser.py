@@ -9,9 +9,9 @@ class MIDDSParser:
     COMMS_MSG_INPUT_LEN             = 13
     COMMS_MSG_OUTPUT_LEN            = 13
     COMMS_MSG_MONITOR_HEADER_LEN    = 8
-    COMMS_MSG_FREQ_LEN              = 20
+    COMMS_MSG_FREQ_LEN              = 28
     COMMS_MSG_CHANNEL_SETT_LEN      = 8
-    COMMS_MSG_SYNC_SETT_LEN         = 23
+    COMMS_MSG_SYNC_SETT_LEN         = 29
 
     # TODO: Substitute them also for bytes constants down bellow (too tired to do it now).
     COMMS_MSG_INPUT_HEAD            = "I"
@@ -201,42 +201,46 @@ class MIDDSParser:
         return None
 
     @staticmethod
-    def encodeInput(channel: int|None, readValue: int|None, time: float|None) -> bytes:
+    def encodeInput(channel: int|None, readValue: int|None, time: int|datetime|None) -> bytes:
         if channel is None or readValue is None or time is None:
             raise ValueError("Invalid encode input values")
-        return struct.pack('<cc2ssd', b'$', b'I', f'{channel:02}'.encode(), f'{readValue:01}'.encode(), time)
+        if type(time) is datetime:
+            time = MIDDSParser.fromDatetimeToUNIX_(time)
+        return struct.pack('<cc2ssQ', b'$', b'I', f'{channel:02}'.encode(), f'{readValue:01}'.encode(), time)
     
     @staticmethod
     def decodeInput(data: bytes):
-        _, _, channel, readValue, time = struct.unpack('<cc2s1sd', data)
+        _, _, channel, readValue, time = struct.unpack('<cc2s1sQ', data)
         if readValue == b'0' or readValue == b'1':
             return {
                 "command":      MIDDSParser.COMMS_MSG_INPUT_HEAD,
                 "channel":      int(channel.decode()),
                 "readValue":    int(readValue.decode()),
-                "time":         time
+                "time":         MIDDSParser.fromUNIXToTimestamp_(time)
             }
         else:
             return {
                 "command":      MIDDSParser.COMMS_MSG_INPUT_HEAD,
                 "channel":      int(channel.decode()),
-                "time":         time
+                "time":         MIDDSParser.fromUNIXToTimestamp_(time)
             }
     
     @staticmethod
-    def encodeOutput(channel: int|None, writeValue: int|None, time: float|None) -> bytes:
+    def encodeOutput(channel: int|None, writeValue: int|None, time: datetime|int|None) -> bytes:
         if channel is None or writeValue is None or time is None:
             raise ValueError("Invalid encode write values")
-        return struct.pack('<cc2ssd', b'$', b'O', f'{channel:02}'.encode(), f'{writeValue:01}'.encode(), time)
+        if type(time) is datetime:
+            time = MIDDSParser.fromDatetimeToUNIX_(time)
+        return struct.pack('<cc2ssQ', b'$', b'O', f'{channel:02}'.encode(), f'{writeValue:01}'.encode(), time)
     
     @staticmethod
     def decodeOutput(data: bytes):
-        _, _, channel, writeValue, time = struct.unpack('<cc2s1sd', data)
+        _, _, channel, writeValue, time = struct.unpack('<cc2s1sQ', data)
         return {
             "command":      MIDDSParser.COMMS_MSG_OUTPUT_HEAD,
             "channel":      int(channel.decode()),
             "writeValue":   int(writeValue.decode()),
-            "time":         time
+            "time":         MIDDSParser.fromUNIXToTimestamp_(time)
         }
     
     @staticmethod
@@ -260,19 +264,22 @@ class MIDDSParser:
         }
 
     @staticmethod
-    def encodeFrequency(channel: int|None, time: float|None) -> bytes:
+    def encodeFrequency(channel: int|None, time: int|datetime|None) -> bytes:
         if channel is None or time is None:
             raise ValueError("Invalid encode frequency values")
-        return struct.pack('<cc2sdd', b'$', b'F', f'{channel:02}'.encode(), 0.0, time)
+        if type(time) is datetime:
+            time = MIDDSParser.fromDatetimeToUNIX_(time)
+        return struct.pack('<cc2sddQ', b'$', b'F', f'{channel:02}'.encode(), 0.0, 0.0, time)
     
     @staticmethod
     def decodeFrequency(data: bytes):
-        _, _, channel, frequency, time = struct.unpack('<cc2sdd', data)
+        _, _, channel, frequency, dutyCycle, time = struct.unpack('<cc2sddQ', data)
         return {
             "command":      MIDDSParser.COMMS_MSG_FREQ_HEAD,
             "channel":      int(channel.decode()),
             "frequency":    frequency,
-            "time":         time
+            "dutyCycle":    dutyCycle,
+            "time":         MIDDSParser.fromUNIXToTimestamp_(time)
         }
 
     @staticmethod
@@ -292,20 +299,22 @@ class MIDDSParser:
         }
     
     @staticmethod
-    def encodeSettingsSYNC(frequency: str|None, dutyCycle: str|None, time: float|None) -> bytes:
-        if frequency is None or dutyCycle is None or time is None:
+    def encodeSettingsSYNC(channel: int|None, frequency: float|None, dutyCycle: float|None, time: int|datetime|None) -> bytes:
+        if channel is None or frequency is None or dutyCycle is None or time is None:
             raise ValueError("Invalid encode Settings SYNC values")
-        return struct.pack('<ccc5s5sd', b'$', b'S', b'Y', frequency.encode(), dutyCycle.encode(), time)
+        if type(time) is datetime:
+            time: int = MIDDSParser.fromDatetimeToUNIX_(time)
+        return struct.pack('<ccc2sddQ', b'$', b'S', b'Y', f'{channel:02}'.encode(), frequency, dutyCycle, time)
     
     @staticmethod
     def decodeSettingsSYNC(data: bytes):
-        _, _, _, channel, frequency, dutyCycle, time = struct.unpack('<ccc2s5s5sQ', data)
+        _, _, _, channel, frequency, dutyCycle, time = struct.unpack('<ccc2sddQ', data)
         return {
             "command":      MIDDSParser.COMMS_MSG_SYNC_SETT_HEAD,
             "channel":      int(channel.decode()),
-            "frequency":    frequency.decode(),
-            "dutyCycle":    dutyCycle.decode(),
-            "time":         time
+            "frequency":    frequency,
+            "dutyCycle":    dutyCycle,
+            "time":         MIDDSParser.fromUNIXToTimestamp_(time)
         }
     
     @staticmethod
@@ -322,3 +331,13 @@ class MIDDSParser:
             "command": MIDDSParser.COMMS_MSG_ERROR_HEAD,
             "message": data[2:-1].decode(errors="backslashreplace")
         }
+    
+    @staticmethod
+    def fromDatetimeToUNIX_(d: datetime) -> int:
+        # MIDDS accepts UNIX timestamps in nanoseconds.
+        return int(d.timestamp() * 1e9)
+    
+    @staticmethod
+    def fromUNIXToTimestamp_(t: int) -> datetime:
+        # MIDDS returns UNIX time in nanoseconds, convert to datetime.
+        return datetime.fromtimestamp(t / 1e9)

@@ -59,7 +59,6 @@ void initChannelController(ChannelController* chCtrl, SPI_HandleTypeDef* hspi) {
     for(int i = 0; i < CH_COUNT; i++) {
         applyChannelConfiguration(chCtrl->channels + i);
     }
-
     setShiftRegisterValues(chCtrl);
 
     // Reenable timers.
@@ -120,7 +119,9 @@ void applyTimerChannelConfig_(Channel* ch) {
         sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
     }else if(ch->mode == CHANNEL_MONITOR_FALLING_EDGES) {
         sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_FALLING;
-    }else if(ch->mode == CHANNEL_MONITOR_BOTH_EDGES) {
+    }else if((ch->mode == CHANNEL_MONITOR_BOTH_EDGES) || 
+             (ch->mode == CHANNEL_INPUT) || 
+             (ch->mode == CHANNEL_FREQUENCY)) {
         sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_BOTHEDGE;
     }
 
@@ -176,7 +177,7 @@ void setShiftRegisterValues(ChannelController* chCtrl) {
     // RE0 DE0 RE1 DE1 ... RE13 DE13
     // Following the circuit, the shift registers are connected as:
     // SR0 > SR1 > SR2 > SR3
-    // On SR1 and SR3, the G and H channels are not used, that is:
+    // On the SR1 and SR3, the G and H channels are not used, that is:
     // - Channels  0 to  3 are on SR0.
     // - Channels  4 to  6 are on SR1.
     // - Channels  7 to 10 are on SR2.
