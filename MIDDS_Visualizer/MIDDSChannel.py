@@ -7,28 +7,36 @@ import ast
 
 @dataclasses.dataclass
 class MIDDSChannel:
-    MAX_POINTS: Final[int]                      = 200
-    TIMEOUT_UNTIL_UNKNOWN_LEVEL_s: Final[float] = 5
+    MAX_POINTS:                     Final[int]   = dataclasses.field(default=1000   , metadata={"export": False})
+    MAX_DELTA_POINTS:               Final[int]   = dataclasses.field(default=10000  , metadata={"export": False})
+    TIMEOUT_UNTIL_UNKNOWN_LEVEL_s:  Final[float] = dataclasses.field(default=5      , metadata={"export": False})
 
-    name:           str                 = ""
-    number:         int                 = 0
-    mode:           str                 = "DS"
-    signal:         str                 = "T" # T (TTL) or L (LVDS)
-    modeSettings:   dict[str, any]      = dataclasses.field(default_factory = dict)
-    toRecord:       bool                = False
+    # Signal: T (TTL) or L (LVDS)
+    name:           str                 = dataclasses.field(default=""              , metadata={"export": True}) 
+    number:         int                 = dataclasses.field(default=0               , metadata={"export": True})
+    mode:           str                 = dataclasses.field(default="DS"            , metadata={"export": True})
+    signal:         str                 = dataclasses.field(default="T"             , metadata={"export": True})
+    modeSettings:   dict[str, any]      = dataclasses.field(default_factory = dict  , metadata={"export": True})
+    toRecord:       bool                = dataclasses.field(default=False           , metadata={"export": True})          
     
-    _channelLevel:          str         = "?"
-    lastLevelUpdate:        datetime    = datetime.now()
-    _frequency:             float       = -1.0
-    _dutyCycle:             float       = -1.0
-    lastFrequencyUpdate:    datetime    = datetime.now()
+    _channelLevel:          str         = dataclasses.field(default="?"             , metadata={"export": False})
+    lastLevelUpdate:        datetime    = dataclasses.field(default=datetime.now()  , metadata={"export": False})           
+    _frequency:             float       = dataclasses.field(default=-1.0            , metadata={"export": False})   
+    _dutyCycle:             float       = dataclasses.field(default=-1.0            , metadata={"export": False})   
+    lastFrequencyUpdate:    datetime    = dataclasses.field(default=datetime.now()  , metadata={"export": False})           
 
-    levels:         deque               = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_POINTS))
-    freqs:          deque               = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_POINTS))
-    freqsUpdates:   deque               = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_POINTS))
+    # For input channels...
+    levels:         deque               = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_POINTS), metadata={"export": False})
+    freqs:          deque               = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_POINTS), metadata={"export": False})
+    dutyCycles:     deque               = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_POINTS), metadata={"export": False})
+    freqsUpdates:   deque               = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_POINTS), metadata={"export": False})
 
-    # During configuration, if MIDDS returns an error, the channel will be set as badly configured.
-    wellConfigured: bool                = True
+    # For monitoring channels...
+    samples:                deque       = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_POINTS), metadata={"export": False})
+    deltas:                 deque       = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_DELTA_POINTS), metadata={"export": False})
+    lastSampleForDelta:     int         = dataclasses.field(default = -1, metadata={"export": False})
+    _risingDelta:            float       = dataclasses.field(default = -1.0, metadata={"export": False})
+    _fallingDelta:           float       = dataclasses.field(default = -1.0, metadata={"export": False})
 
     @property
     def channelLevel(self) -> str:
@@ -67,6 +75,7 @@ class MIDDSChannel:
         self.lastFrequencyUpdate = datetime.now()
         
         self.freqs.append(self._frequency)
+        self.dutyCycles.append(self._dutyCycle)
         self.freqsUpdates.append(time)
 
     @property
@@ -78,14 +87,23 @@ class MIDDSChannel:
         else:
             return "Invalid signal"
 
-    def generateRecurringMessages(self) -> bytes|None:
+    @property
+    def risingDelta(self) -> str:
+        return f'{self._risingDelta*1e9 : .1f} ns'
+
+    @property
+    def fallingDelta(self) -> str:
+        return f'{self._fallingDelta*1e9 : .1f} ns'
+
+    def generateRecurringMessages(self) -> bytes:
+        msg: bytes = b''
         if self.mode == "IN":
-            return b''.join([
-                MIDDSParser.encodeInput(self.number, 0, 0),
-                MIDDSParser.encodeFrequency(self.number, 0)
-            ])
+            if self.modeSettings.get("INRequestLevel", False):
+                msg += MIDDSParser.encodeInput(self.number, 0, 0)
+            if self.modeSettings.get("INRequestFrequency", False):
+                msg += MIDDSParser.encodeFrequency(self.number, 0)
         
-        return None
+        return msg
 
     def updateValues(self, values: dict[str,any]):
         msgCommand = values.get("command", None)
@@ -106,7 +124,93 @@ class MIDDSChannel:
                     dutyCycle   = values.get("dutyCycle", -1.0),
                     time        = values.get("time", datetime.now()),
                 )
+        elif self.mode in ("MR", "MF", "MB"):
+            readSamples: list[int] = values.get("samples", None)
+            if readSamples is None: 
+                return
 
+            self.samples.extend(readSamples)
+            self.calculateChannelFrequencyFromTimestamps()
+            self.calculateDeltas(readSamples)
+
+    def calculateDeltas(self, currentSamples: list[int]):
+        if len(currentSamples) <= 0:
+            return
+        
+        if self.lastSampleForDelta != -1:
+            currentSamples = [self.lastSampleForDelta, ] + currentSamples
+            
+        self.lastSampleForDelta = currentSamples[-1]
+        
+        if len(currentSamples) < 2:
+            return
+
+        for s0, s1 in zip(currentSamples[:-1], currentSamples[1:]):
+            delta: float = ((s1 >> 1) - (s0 >> 1)) / 1e9
+            self.deltas.append(delta)
+
+        if self.mode == "MB":
+            if len(self.deltas) < 3:
+                return
+            
+            if (self.lastSampleForDelta & 0x01) == 1:
+                # Last sample was rising. 
+                self._risingDelta = self.deltas[-2] + self.deltas[-1]
+                self._fallingDelta = self.deltas[-2] + self.deltas[-3]
+            else:
+                # Last sample was falling. 
+                self._fallingDelta = self.deltas[-2] + self.deltas[-1]
+                self._risingDelta = self.deltas[-2] + self.deltas[-3]
+        elif self.mode == "MR":
+            self._risingDelta = self.deltas[-1]
+            self._fallingDelta = -1.0
+        elif self.mode == "MF":
+            self._risingDelta = -1.0
+            self._fallingDelta = self.deltas[-1]
+        else:
+            self._risingDelta = -1.0
+            self._fallingDelta = -1.0
+
+    def calculateChannelFrequencyFromTimestamps(self):
+        if len(self.samples) < 10: return
+
+        sampleList: tuple[int] = tuple(self.samples)
+        
+        firstRising: bool = True
+        periodSum_ns: float = 0.0
+        risedTimeSum_ns: float = 0.0
+        cycleCount: int = 0
+        previousRisingTime_ns: int
+        for i, sample in enumerate(sampleList):
+            isRising:       bool    = (sample & 0x01) == 1
+            timestamp_ns:   int = (sample >> 1)
+
+            if not isRising:
+                if firstRising: continue
+                if i == (len(sampleList) - 1): break
+
+            if isRising:
+                if not firstRising:
+                    periodSum_ns += timestamp_ns - previousRisingTime_ns
+                    cycleCount += 1
+                previousRisingTime_ns = timestamp_ns
+                firstRising = False
+            else:
+                risedTimeSum_ns += timestamp_ns - previousRisingTime_ns
+
+        if cycleCount > 0:
+            # Set the frequency, duty cycle and time. Time will be the last time of the timestamp.
+            dutyCycle = -1.0
+            if self.mode == "MB":
+                # Duty cycle can only be calculated with both edges.
+                dutyCycle = risedTimeSum_ns * 100.0 / periodSum_ns
+
+            self.setFrequencyAndDutyCycle(
+                freq = cycleCount/periodSum_ns*1e9,
+                dutyCycle = dutyCycle,
+                time = datetime.fromtimestamp((sampleList[-1] >> 1) / 1e9)
+            )
+            
     def filterModeSettings(self):
         # The channel options always start with the channel mode code ("IN", "OU"...).
         toRemoveKeys: list[str] = []
@@ -117,24 +221,31 @@ class MIDDSChannel:
         for key in toRemoveKeys:
             del self.modeSettings[key]
 
+    def clearValues(self):
+        self.levels.clear()
+        self.freqs.clear()
+        self.dutyCycles.clear()
+        self.freqsUpdates.clear()
+        self.samples.clear()
+        self.deltas.clear()
+        self.lastSampleForDelta = -1
+
+        self._channelLevel = "?"
+        self._frequency = -1.0
+        self._dutyCycle = -1.0
+
+    def copyFrom(self, other):
+        self.name           = str(other.name)           
+        self.number         = int(other.number)
+        self.mode           = str(other.mode)
+        self.signal         = str(other.signal)
+        self.modeSettings   = dict(other.modeSettings)
+        self.toRecord       = bool(other.toRecord)
+
     def toDict(self) -> dict[str,any]:
         self.filterModeSettings()
-        toSaveDict = dataclasses.asdict(self)
+        return {k: v for k, v in dataclasses.asdict(self).items() if self.__dataclass_fields__[k].metadata.get("export", True)}
 
-        # Remove the fields that must not be saved on the configuration file.
-        del toSaveDict['MAX_POINTS']
-        del toSaveDict['TIMEOUT_UNTIL_UNKNOWN_LEVEL_s']
-        del toSaveDict['_channelLevel']
-        del toSaveDict['_frequency']
-        del toSaveDict['_dutyCycle']
-        del toSaveDict['lastLevelUpdate']
-        del toSaveDict['lastFrequencyUpdate']
-        del toSaveDict['levels']
-        del toSaveDict['freqs']
-        del toSaveDict['freqsUpdates']
-        del toSaveDict['wellConfigured']
-        return toSaveDict
-    
     def getChannelOptionsForChecklist(self) -> list[str]:
         return [keyName for keyName, value in self.modeSettings.items() if value]
 
@@ -159,21 +270,43 @@ class MIDDSChannel:
         return cls(**casted_data)
     
 class MIDDSChannelOptions:
-    #   Name of option         Description                  Default value
+    #   Name of the option          Description                 Default value
     INOptions = {
-        "INPlotFreqInGraph" : ("Add to frequency graph",    False),
+        "INRequestLevel"        : ("Request channel level",     True),
+        "INRequestFrequency"    : ("Request frequency",         True),
+        "INPlotFreqInGraph"     : ("Add to frequency graph",    False),
+        "INPlotDutyCycleInGraph": ("Add to duty cycle graph",   False),
+    }
+
+    MROptions = {
+        "MRCalculateFrequency"  : ("Calculate frequency",       True),
+        "MRPlotFreqInGraph"     : ("Add to frequency graph",    False),
+        "MRPlotDeltasInGraph"   : ("Add to deltas graph",       False),
+    }
+
+    MFOptions = {
+        "MFCalculateFrequency"  : ("Calculate frequency",       True),
+        "MFPlotFreqInGraph"     : ("Add to frequency graph",    False),
+        "MFPlotDeltasInGraph"   : ("Add to deltas graph",       False),
+    }
+
+    MBOptions = {
+        "MBCalculateFrequency"  : ("Calculate frequency",       True),
+        "MBPlotFreqInGraph"     : ("Add to frequency graph",    False),
+        "MBPlotDutyCycleInGraph": ("Add to duty cycle graph",   False),
+        "MBPlotDeltasInGraph"   : ("Add to deltas graph",       False),
     }
 
     @staticmethod
     def getGUIOptionsForMode(mode: str) -> list[dict[str,any]]:
-        if mode == "IN":
-            return [{"label": val[0], "value" : key} for key, val in MIDDSChannelOptions.INOptions.items()]
-        
-        return []
-    
+        options = getattr(MIDDSChannelOptions, f"{mode}Options", None)
+        if options is None:
+            return []
+        return [{"label": val[0], "value": key} for key, val in options.items()]
+
     @staticmethod
     def getDefaultChannelOptionsForMode(mode: str) -> dict[str,any]:
-        if mode == "IN":
-            return {key: val[1] for key, val in MIDDSChannelOptions.INOptions.items()}
-    
-        return {}
+        options = getattr(MIDDSChannelOptions, f"{mode}Options", None)
+        if options is None:
+            return {}
+        return {key: val[1] for key, val in options.items()}

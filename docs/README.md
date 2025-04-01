@@ -58,23 +58,15 @@ The MIDDS heavily relies on the hardware timers of the MCU. A timer is basically
 
 The counter’s numerical range is somewhat limited (from 0 to 65535). Although this at first may not appear to be a small number, the MCU’s clock is expected to run at around 400MHz, meaning that the counter will fill up every 163.84 microseconds!
 
-When the counter reaches its upper threshold, an overflow occurs, and the counter rolls back to zero. Every time this happens, an interruption or ISR is triggered on the MCU. On this ISR, the MCU increments a software 64-bit counter.
+When the counter reaches its upper threshold, an overflow occurs, and the counter rolls back to zero. Every time this happens, an interruption or ISR is triggered on the MCU. On this ISR, the MCU increments a software 64-bit counter called the "coarse counter" by exactly 65536. By adding the TIMx value to the coarse counter, the real time of the timestamp gets calculated. There's one big "if" to this approach and that is that MIDDS is expected to serve the ISR "relatively fast". 
 
-Henceforth, the hardware timers (HRTIM and TIMx) will be called the "fine counters" whilst the software counters will be the "coarse counters".
+Therefore, MIDDS has a precision-per-bit of 2.5ns (at 400MHz) and a total time count of 4.612 · 10<sup>10</sup> seconds (around 1461 years).
 
-<img src="imgs/CounterStructure.png" width="600"/>
+Although this number is impressive, it is not very useful to use such large times without keeping a more constraint time of reference. This is because of the relative accuracy of the clock pulse which is fed to the MCU: 
+- Using the onboard TXCO (X1) of 8MHz, 10 ppm, for each pulse of a real 8MHz clock, there is a small amount of time which, at maximum, is being lost: every 8 million pulses, there is a maximum drift of 10 us/s, 600 us/min, 36 ms/h or 864 ms/day which for some applications is too much.
+- An external clock signal may be used by inputting it through X2. For example, by using an external OCXO of 25MHz, 10 ppb, the maximum delay is of ±10us. This could amount to 10 ns/s, 600 ns/min, 36 us/h or 864 us/day.
 
-This structure gives a precision-per-bit of 2.5ns (at 400MHz) and a total time count of 3.022 · 10<sup>15</sup> seconds (around 96 million years).
-
-Although this number is impressive, it is not very useful to use such large times without keeping a more constraint time of reference. This is because of the relative accuracy of the onboard OCXO of the MCU: by using an OCXO of 25MHz, 10 ppb, for each pulse of a real 25MHz clock, there is a small amount of time which, at maximum, is being lost:
-
-Therefore, every 25 million pulses, there is a maximum drift of ±10ns. This could amount to 10 ns/s, 600 ns/min, 36 us/h or 864 us/day, which for some applications may be unsuited.
-
-This is why the MIDDS also has a SYNC input that allows the user to input its reference pulse signal. This signal will normally come from a more stable and reliable source, such as GPS. The frequency and duty cycle of said pulse signal will need to be specified via software. Unless noted from the computer, the MIDDS will suppose that a 1 PPS signal of 50% duty cycle is being used.
-
-The following is the synchronization sequence of the SYNC signal with the MIDDS clock:
-
-<!-- TODO -->
+Due to these drifts in the clock sources, MIDDS also has a **SYNC** input that allows the user to input its reference pulse signal. This signal will normally come from a more stable and reliable source, such as GPS. The frequency, duty cycle and the SYNC channel will need to be specified via software.
 
 # Hardware and Software design
 

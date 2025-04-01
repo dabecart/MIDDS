@@ -163,8 +163,14 @@ void setShiftRegisterValues(ChannelController* chCtrl) {
         ch = &chCtrl->channels[i];
         timCh = &ch->data.timer;
         
-        RE = ((timCh->signalType == CHANNEL_SIGNAL_TTL) && (ch->mode == CHANNEL_INPUT)) ||
-             ((timCh->signalType == CHANNEL_SIGNAL_LVDS) && (ch->mode == CHANNEL_OUTPUT));
+        RE = ((timCh->signalType == CHANNEL_SIGNAL_TTL) && 
+              ((ch->mode == CHANNEL_INPUT) || 
+                (ch->mode == CHANNEL_MONITOR_BOTH_EDGES) || 
+                (ch->mode == CHANNEL_MONITOR_FALLING_EDGES) || 
+                (ch->mode == CHANNEL_MONITOR_RISING_EDGES) || 
+                (ch->mode == CHANNEL_FREQUENCY)
+              )
+             ) || ((timCh->signalType == CHANNEL_SIGNAL_LVDS) && (ch->mode == CHANNEL_OUTPUT));
         
         DE = (timCh->signalType == CHANNEL_SIGNAL_LVDS);
         

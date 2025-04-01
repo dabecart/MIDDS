@@ -79,7 +79,8 @@ class ProgramConfiguration:
 
         self.config = copy.deepcopy(other.config)
         self.configPath = other.configPath
-        self.channels = copy.deepcopy(other.channels)
+        for i in range(len(other.channels)):
+            self.channels[i].copyFrom(other.channels[i]) 
 
     # Dictionary function calls.
     def __getitem__(self, key):

@@ -62,24 +62,6 @@ class MIDDSParser:
 
     @staticmethod
     def decodeMessage(serial: Serial, record: bool = False) -> dict[str,any] | None:
-        serialData: bytes = serial.read(serial.in_waiting)
-
-        if record:
-            if MIDDSParser.recordingFileName == "":
-                # The recording has just started. Generate a file name. It should not enter this 
-                # line! Call createNewRecordingFile beforehand.
-                MIDDSParser.createNewRecordingFile()
-
-            with open(MIDDSParser.recordingFileName, 'ab') as f:
-                f.write(serialData)
-        else:
-            # End recording.
-            MIDDSParser.recordingFileName = ""
-
-        MIDDSParser.inputDeque.extend(serialData[i:i+1] for i in range(len(serialData)))
-        
-        readMsg: bytes = b''
-
         def popN(d: deque, n: int) -> bytes:
             ret = b''
             for _ in range(n):
@@ -97,6 +79,26 @@ class MIDDSParser:
         def reconstructMessage():
             MIDDSParser.inputDeque.extendleft(reversed(readMsg))
 
+        # Read from the serial port.
+        serialData: bytes = serial.read(serial.in_waiting)
+
+        # Record data if currently recording.
+        if record:
+            if MIDDSParser.recordingFileName == "":
+                # The recording has just started. Generate a file name. It should not enter this 
+                # line! Call createNewRecordingFile beforehand.
+                MIDDSParser.createNewRecordingFile()
+
+            with open(MIDDSParser.recordingFileName, 'ab') as f:
+                f.write(serialData)
+        else:
+            # End recording.
+            MIDDSParser.recordingFileName = ""
+
+        # Add the read content to the input deque. Do it as separated bytes.
+        MIDDSParser.inputDeque.extend(serialData[i:i+1] for i in range(len(serialData)))
+        
+        readMsg: bytes = b''
         while len(MIDDSParser.inputDeque) > 0:
             readMsg: bytes = MIDDSParser.inputDeque.popleft()
             if readMsg != b'$':
@@ -149,8 +151,8 @@ class MIDDSParser:
                     discardMessage()
                     break
 
-                sampleData = popN(MIDDSParser.inputDeque, sampleCount * 8)
-                if len(sampleData) != (MIDDSParser.COMMS_MSG_MONITOR_HEADER_LEN + sampleCount*8):
+                readMsg += popN(MIDDSParser.inputDeque, sampleCount * 8)
+                if len(readMsg) != (MIDDSParser.COMMS_MSG_MONITOR_HEADER_LEN + sampleCount*8):
                     reconstructMessage()
                     break
 

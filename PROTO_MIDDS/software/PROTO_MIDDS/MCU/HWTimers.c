@@ -194,8 +194,14 @@ void getChannelFrequencyAndDutyCycle(HWTimerChannel* hwTimer,
         uint64_t time = timestamp >> 1;
         uint32_t isRising = timestamp & 0x01ULL;
 
-        // Continue until a rising edge is found.
-        if(firstRising && !isRising) continue;
+        if(!isRising) {
+            // Continue until a rising edge is found.
+            if(firstRising) continue;
+
+            // Break the loop if the last edge is a falling edge. The calculations must end on a 
+            // rising edge.
+            if(hwTimer->data.len == 0) break;
+        }
 
         if(isRising) {
             if(!firstRising) {

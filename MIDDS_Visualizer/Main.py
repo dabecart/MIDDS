@@ -27,7 +27,6 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
             
             time.sleep(5e-3) #Await a response from MIDDS (if any). 
             
-            ch.wellConfigured = True
             while True:
                 newMsg = MIDDSParser.decodeMessage(ser, events.recording)
                 if newMsg is None:
@@ -35,7 +34,6 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
                     break
 
                 if newMsg.get("command") == MIDDSParser.COMMS_MSG_ERROR_HEAD:
-                    ch.wellConfigured = False
                     events.raiseError("MIDDS Error", newMsg.get("message", "(undefined)"))
                     break
 
@@ -127,7 +125,7 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
 
                         for ch in config.channels:
                             msg = ch.generateRecurringMessages()
-                            if msg is not None:
+                            if len(msg) > 0:
                                 ser.write(msg)
                 except Exception as e:
                     ser = None

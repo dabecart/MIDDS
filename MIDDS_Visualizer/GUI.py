@@ -6,7 +6,7 @@ import plotly.graph_objs as go
 from ProgramConfiguration import ProgramConfiguration
 from GUI2BackendEvents import GUI2BackendEvents
 import json
-from MIDDSChannel import MIDDSChannelOptions
+from MIDDSChannel import MIDDSChannel, MIDDSChannelOptions
 import copy
 
 class GUI:
@@ -18,6 +18,7 @@ class GUI:
         self.temporalConfig: ProgramConfiguration = copy.deepcopy(config)
         self.changesToApply: bool = False
         self.suppressChannelOptionsUpdate = False
+        self.plotPeriodInsteadOfFreq = False
 
         self.selectedChannelNumber:   int = 0
 
@@ -39,10 +40,10 @@ class GUI:
 
     def setupLayout(self):
         # Initial figure.
-        self.fig = go.Figure()
-        self.fig.update_layout(
+        self.frequencyFig = go.Figure()
+        self.frequencyFig.update_layout(
             xaxis=dict(
-                title = 'Time',
+                # title = 'Time',
                 tickformat = '%H:%M:%S',
                 autorange = True
             ),
@@ -52,11 +53,50 @@ class GUI:
             ),
             
             template='plotly_dark',
-            margin=dict(l=20, r=20, t=20, b=20),
+            margin=dict(l=10, r=10, t=5, b=20),
             showlegend=True,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
 
             # Transition breaks the autorange function...
             # transition={'duration': 200}
+        )
+
+        self.dutyCycleFig = go.Figure()
+        self.dutyCycleFig.update_layout(
+            xaxis=dict(
+                # title = 'Time',
+                tickformat = '%H:%M:%S',
+                autorange = True
+            ),
+            yaxis=dict(
+                title = 'Duty cycle (%)',
+                autorange = True
+            ),
+            
+            template='plotly_dark',
+            margin=dict(l=10, r=10, t=5, b=20),
+            showlegend=True,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+        )
+
+        self.deltaFig = go.Figure()
+        self.deltaFig.update_layout(
+            xaxis=dict(
+                # title = 'Delta (ns)',
+                autorange = True
+            ),
+            yaxis=dict(
+                title = 'Frequency',
+                autorange = True
+            ),
+            
+            template='plotly_dark',
+            margin=dict(l=10, r=10, t=5, b=20),
+            showlegend=True,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
         )
 
         # App layout
@@ -69,8 +109,8 @@ class GUI:
                 html.Div([
                     dcc.Input(id="serial-name", className="inputPane", type="text", placeholder="Serial port", 
                             value=self.config['ProgramConfig']['SERIAL_PORT']),
-                    html.Button("Connect", id="connect-btn", className="connect-btn", n_clicks=0),
-                    html.Button("⏺ Record", id="record-btn", className="record-btn", n_clicks=0)
+                    html.Button("Connect", id="connect-btn", className="connect-btn"),
+                    html.Button("⏺ Record", id="record-btn", className="record-btn")
                 ], className="header-right-div")
             ], className="header"),
             
@@ -118,13 +158,18 @@ class GUI:
 
                     html.Label("Channel options:", className="sidebar-label"),
                     html.Div(id="gpio-options"),
+
+                    html.Hr(),
+
+                    html.Label("Channel functions:", className="sidebar-label"),
+                    html.Button("Clear data", id="clear-data-btn", className="clear-data-btn"),
                 ], className="sidebar-content"),
 
                 html.Div([
                     html.P("You've made changes to the channel's configuration."),
                     html.Div([
-                        html.Button("Apply", id="apply-config-btn", className="config-btn", n_clicks=0),
-                        html.Button("Discard", id="discard-config-btn", className="config-btn", n_clicks=0)
+                        html.Button("Apply", id="apply-config-btn", className="config-btn"),
+                        html.Button("Discard", id="discard-config-btn", className="config-btn")
                     ], className="apply-config-button-div")
                 ], id="apply-config", className="apply-config hidden")
             ], id="sidebar", className="sidebar"),
@@ -133,10 +178,26 @@ class GUI:
             html.Main([
                 # Frequency Graph
                 html.Section([
-                    html.Label("Frequencies", className="section-title"),
-                    dcc.Graph(id='freq-graph', figure=self.fig),
-                    dcc.Checklist(id='freq-filters', options=[], inline=True)
-                ], className="freq-section"),
+                    html.Section([
+                        html.Div([
+                            html.Label("Periods" if self.plotPeriodInsteadOfFreq else "Frequencies",
+                                       id="switch-frequencies-label", className="section-title"),
+                            html.Button("Switch to frequencies" if self.plotPeriodInsteadOfFreq else "Switch to periods",
+                                         id="switch-frequencies-btn", className="switch-frequencies-btn"),
+                        ], className="freq-label-div"),
+                        dcc.Graph(id='freq-graph', className='graph', figure=self.frequencyFig)
+                    ], className="freq-section"),
+
+                    html.Section([
+                        html.Label("Duty Cycles", className="section-title"),
+                        dcc.Graph(id='duty-graph', className='graph', figure=self.dutyCycleFig)
+                    ], className="duty-section"),
+
+                    html.Section([
+                        html.Label("Time deltas", className="section-title"),
+                        dcc.Graph(id='deltas-graph', className='graph', figure=self.deltaFig)
+                    ], className="deltas-section"),
+                ], className="plots-row"),
                 
                 html.Hr(),
 
@@ -153,6 +214,15 @@ class GUI:
                     html.Label("Outputs", className="section-title"),
                     html.Section(id="output-channels", className="output-channels"),
                 ],className="outputs-row"),
+
+                html.Hr(),
+
+                # Monitor Row
+                html.Section([
+                    html.Label("Monitors", className="section-title"),
+                    html.Section(id="monitor-channels", className="monitor-channels"),
+                ],className="monitors-row"),
+
             ], id="main-content", className="main-content"),
             
             # Error Notification
@@ -163,8 +233,57 @@ class GUI:
                 html.P(id="error-content",  className="error-content")
             ], id="error-message-div", className="error-message-div initialHidden"),
             
+            # Settings pane
+            html.Div([
+                html.P("Settings", id="settings-title", className="settings-title"),
+                html.Div([
+                    html.Section([
+                        html.Label("SYNC", className="section-title"),
+                        html.Div([
+                            html.P("Channel"),
+                            dcc.Dropdown(
+                                id="sync-channel", 
+                                options=
+                                [{
+                                    "label": "Disabled",
+                                    "value": -1,
+                                }]
+                                +
+                                [{
+                                    "label": f"Channel {i}", 
+                                    "value": i
+                                } for i in range(0, int(self.config['ProgramConfig']['CHANNEL_COUNT']))], 
+                                value=-1
+                            ),
+                            
+                            html.P("Frequency (Hz)"),
+                            dcc.Input(
+                                id="sync-frequency", className="inputPane", 
+                                type="number", min=float(0.01), max=float(100.0),
+                                placeholder="Enter SYNC frequency", 
+                                value=float(1.0)
+                            ),
+
+                            html.P("Duty Cycle (%)"),
+                            dcc.Input(
+                                id="sync-duty", className="inputPane", 
+                                type="number", min=float(0.000001), max=float(99.999999),
+                                placeholder="Enter SYNC duty cycle", 
+                                value=float(50.0)
+                            ),
+
+                        ], className="sync-row-content")
+                    ],className="sync-row"),
+                    html.Div([
+                        html.Button("Apply settings", className="config-btn", id="apply-settings-btn"),
+                        html.Button("Discard settings", className="config-btn", id="discard-settings-btn"),
+                    ], className="apply-settings-div"),
+                ], className="settings-div-content"),
+            ], id="settings-div", className="settings-div initialHidden"),
+
             # Footer
             html.Footer([
+                html.Button("Settings", id="settings-btn", className="settings-btn"),
                 html.P([
                     "Made by ",
                     html.A("@dabecart", href="https://www.instagram.com/dabecart", target="_blank")
@@ -224,9 +343,13 @@ class GUI:
         # Callback for connecting/disconnecting from the device.
         @self.app.callback(
             Input("connect-btn", "n_clicks"),
+            State("serial-name", "value"),
             prevent_initial_call=True
         )
-        def toggleConnection(n_clicks):
+        def toggleConnection(n_clicks, serialName):
+            self.config['ProgramConfig']['SERIAL_PORT'] = serialName
+            self.config.saveConfig()
+
             if self.events.deviceConnected:
                 # The device is connected and by clicking, the user is requesting to disconnect.
                 self.events.closeSerialPort.set()
@@ -251,15 +374,6 @@ class GUI:
                 return "Connected", "connect-btn connected", False
             else:
                 return "Connect", "connect-btn", False
-
-        # Callback for serial name change.
-        @self.app.callback(
-            Input("serial-name", "value"),
-            prevent_initial_call=True,
-        )
-        def updateSerialName(serialName):
-            self.config['ProgramConfig']['SERIAL_PORT'] = serialName
-            self.config.saveConfig()
 
         # Callback for sidebar changes.
         @self.app.callback(
@@ -312,6 +426,13 @@ class GUI:
             # apply-config without the hidden.
             return returnName, returnMode, returnSignal, applyConfigClassName
 
+        @self.app.callback(
+            Input("clear-data-btn", "n_clicks"),
+            prevent_initial_call=True
+        )
+        def clearDataPoints(clicks):
+            self.config.getChannel(self.selectedChannelNumber).clearValues()
+
         # Callback for applying the new configuration.
         @self.app.callback(
             Output("apply-config", "className", allow_duplicate=True),
@@ -352,10 +473,11 @@ class GUI:
         def updateGPIOOptions(mode):
             # The update of gpio-options should not trigger the updateAddToFreqGraph callback.
             self.suppressChannelOptionsUpdate = True
-            if mode == "IN":
+            optionsList = MIDDSChannelOptions.getGUIOptionsForMode(mode)
+            if len(optionsList) > 0:
                 return html.Div([
                     dcc.Checklist(id="gpio-options-list", 
-                                  options=MIDDSChannelOptions.getGUIOptionsForMode("IN"),
+                                  options=optionsList,
                                   value=self.temporalConfig.getChannel(self.selectedChannelNumber).getChannelOptionsForChecklist(),
                                   inline=True)
                 ])
@@ -397,27 +519,107 @@ class GUI:
 
             return inCheckListRet, applyConfigClassNameRet
 
+        @self.app.callback(
+            Output("switch-frequencies-label", "children"),
+            Output("switch-frequencies-btn", "children"),
+            Input("switch-frequencies-btn", "n_clicks"),
+            prevent_initial_call=True,
+        )
+        def switchFreqGraphUnits(n_clicks):
+            self.plotPeriodInsteadOfFreq = not self.plotPeriodInsteadOfFreq
+
+            return "Periods" if self.plotPeriodInsteadOfFreq else "Frequencies", \
+                   "Switch to frequencies" if self.plotPeriodInsteadOfFreq else "Switch to periods"
+
         # Callback to update input/output/frequency widgets
         @self.app.callback(
             Output('freq-graph', 'figure'),
+            Output('duty-graph', 'figure'),
+            Output('deltas-graph', 'figure'),
             Output("input-channels", "children"),
             Output("output-channels", "children"),
+            Output("monitor-channels", "children"),
             
             Input("interval-component", "n_intervals"),
-            State('freq-graph', 'figure')
+            State('freq-graph', 'figure'),
+            State('duty-graph', 'figure'),
+            State('deltas-graph', 'figure')
         )
-        def updateWidgets(n, f):
+        def updateWidgets(n, freqGraph, dutyGraph, deltasGraph):
+            def updateDataInPlot(ch: MIDDSChannel, figure: go.Figure, xPoints: tuple, yPoints: tuple|None, plotInGraph: bool) -> bool:
+                figureColors: tuple[str] = ('#FF6969', 
+                                            '#FFB860', 
+                                            '#FAFF71', 
+                                            '#8DFF76', 
+                                            '#58F1FF', 
+                                            '#5C9AFF', 
+                                            '#836DFF', 
+                                            '#FF7EFF', 
+                                            '#FFFFA9')
+
+                channelNameInGraph = f'Ch. {ch.number:02}'
+                # list of traces with the name "channelNameInGraph".
+                foundMatches = list(figure.select_traces(selector=dict(name=channelNameInGraph)))
+
+                if plotInGraph:
+                    if len(xPoints) <= 0: return False
+
+                    if len(foundMatches) > 0:
+                        # If the trace is on the graph, update it.
+                        foundMatches[0]['x'] = xPoints
+                        if yPoints is not None:
+                            foundMatches[0]['y'] = yPoints
+                        
+                    else:
+                        # If the trace is not on the graph, add it.
+                        if yPoints is None:
+                            # Add a histogram graph.
+                            figure.add_trace(go.Histogram(
+                                x=xPoints,
+                                nbinsx=50,
+                                marker=dict(color=figureColors[len(figure.data) % len(figureColors)]),
+                                opacity=0.7,
+                                name=channelNameInGraph
+                            ))
+                        else:
+                            # Add an Scatter graph.
+                            figure.add_trace(go.Scatter(
+                                x=xPoints,
+                                y=yPoints,
+                                mode='markers+lines',
+                                marker=dict(size=4,
+                                            color=figureColors[len(figure.data) % len(figureColors)], 
+                                            opacity=0.7),
+                                name=channelNameInGraph
+                            ))
+                    return True
+                
+                elif len(foundMatches) > 0:
+                    # Remove the trace from the graph if it's not set to plot.
+                    for i, trace in enumerate(figure['data']):
+                        if 'name' in trace and trace['name'] == channelNameInGraph:
+                            # self.fig['data] returns a tuple. Remove the trace from it.
+                            dataList = list(figure['data'])
+                            del dataList[i]
+                            figure['data'] = tuple(dataList)
+                            return True
+
+                return False
+
             if not self.events.deviceConnected:
                 raise PreventUpdate
             
-            # Update the figure with the settings of the client side.
-            self.fig = go.Figure(f)
+            # Update the figures with the settings of the client side.
+            self.frequencyFig   = go.Figure(freqGraph)
+            self.dutyCycleFig   = go.Figure(dutyGraph)
+            self.deltaFig       = go.Figure(deltasGraph)
 
-            # fig = go.Figure()
-            figUpdated: bool = False
-
+            retFreqGraph = no_update
+            retDutyGraph = no_update
+            retDeltaGraph = no_update
             inputWidgets = []
             outputWidgets = []
+            monitorWidgets = []
 
             self.channelsLock.acquire()
             for ch in self.config.channels:
@@ -426,79 +628,98 @@ class GUI:
                     title += f": {ch.name}" 
 
                 if ch.mode == "IN":
-                    inputWidgets.append(
-                        html.Div([
-                            html.P(title),
-                            html.P(ch.signalType),
-                            html.P(f"Level:      {ch.channelLevel}"),
+                    inputContent = [
+                        html.P(title),
+                        html.P(ch.signalType),
+                    ]
+
+                    if ch.modeSettings.get("INRequestLevel", False):
+                        inputContent.append(
+                            html.P(f"Level:      {ch.channelLevel}")
+                        )
+                    
+                    if ch.modeSettings.get("INRequestFrequency", False):
+                        inputContent.extend([
                             html.P(f"Frequency:  {ch.frequency} Hz"),
                             html.P(f"Duty cycle: {ch.dutyCycle} %"),
-                        ], className="gpio-widget")
+                        ])
+
+                    inputWidgets.append(
+                        html.Div(inputContent, className="gpio-widget input-gpio-widget")
                     )
+
                 elif ch.mode == "OU":
+                    outputContent = [
+                        html.P(title),
+                        html.P(ch.signalType),
+                        html.P(f"Level:      {ch.channelLevel}"),
+                        html.Button("ON", id=f"gpio-on-{ch.number}", className="gpio-btn"),
+                        html.Button("OFF", id=f"gpio-off-{ch.number}", className="gpio-btn"),
+                    ]
+
                     outputWidgets.append(
-                        html.Div([
-                            html.P(title),
-                            html.P(f"Level: {ch.channelLevel}"),
-                            html.Button("ON", id=f"gpio-on-{ch.number}", className="gpio-btn"),
-                            html.Button("OFF", id=f"gpio-off-{ch.number}", className="gpio-btn")
-                        ], className="gpio-widget")
+                        html.Div(outputContent, className="gpio-widget output-gpio-widget")
+                    )
+                elif ch.mode in ["MR", "MF", "MB"]:
+                    monitorContent = [
+                        html.P(title),
+                        html.P(ch.signalType),
+                    ]
+
+                    if ch.modeSettings.get(ch.mode + "CalculateFrequency", False):
+                        monitorContent.extend([
+                            html.P(f"Frequency:  {ch.frequency} Hz"),
+                            html.P(f"Duty cycle: {ch.dutyCycle} %"),
+                        ])
+
+                    if ch.mode in ["MR", "MB"]:
+                        monitorContent.append(
+                            html.P(f"Rising Δ:  {ch.risingDelta}"),
+                        )
+
+                    if ch.mode in ["MF", "MB"]:
+                        monitorContent.append(
+                            html.P(f"Falling Δ: {ch.fallingDelta}"),
+                        )
+
+                    monitorWidgets.append(
+                        html.Div(monitorContent, className="gpio-widget input-gpio-widget")
                     )
 
-                plotInFreqGraph = ch.modeSettings.get("INPlotFreqInGraph", False)
-                channelNameInGraph = f'Ch. {ch.number:02}'
-                # list of traces with the name "channelNameInGraph".
-                foundMatches = list(self.fig.select_traces(selector=dict(name=channelNameInGraph)))
+                plotInFreqGraph = ch.modeSettings.get(ch.mode + "PlotFreqInGraph", False)
+                self.frequencyFig.update_layout(
+                    yaxis=dict(
+                        title = 'Period (s)' if self.plotPeriodInsteadOfFreq else "Frequency (Hz)",
+                    ),
+                )
+                if updateDataInPlot(ch            = ch,
+                                    figure        = self.frequencyFig, 
+                                    xPoints       = tuple(ch.freqsUpdates), 
+                                    yPoints       = tuple(1.0/f if self.plotPeriodInsteadOfFreq else f for f in ch.freqs), 
+                                    plotInGraph   = plotInFreqGraph):
+                    retFreqGraph = self.frequencyFig
 
-                if not plotInFreqGraph and len(foundMatches) > 0:
-                    # Remove the trace from the graph if it's not set to plot.
-                    for i, trace in enumerate(self.fig['data']):
-                        if 'name' in trace and trace['name'] == channelNameInGraph:
-                            # self.fig['data] returns a tuple. Remove the trace from it.
-                            dataList = list(self.fig['data'])
-                            del dataList[i]
-                            self.fig['data'] = tuple(dataList)
-                            break
-                    
-                if plotInFreqGraph and ch.mode == "IN":
-                    if len(ch.freqs) <= 0:
-                        continue
+                plotInDutyGraph = ch.modeSettings.get(ch.mode + "PlotDutyCycleInGraph", False)
+                if plotInDutyGraph:
+                    pass
+                if updateDataInPlot(ch            = ch,
+                                    figure        = self.dutyCycleFig, 
+                                    xPoints       = tuple(ch.freqsUpdates), 
+                                    yPoints       = tuple(ch.dutyCycles), 
+                                    plotInGraph   = plotInDutyGraph):
+                    retDutyGraph = self.dutyCycleFig
 
-                    xPoints = tuple(ch.freqsUpdates)
-                    yPoints = tuple(ch.freqs)
-
-                    if len(foundMatches) > 0:
-                        # If the trace is on the graph, update it.
-                        foundMatches[0]['x'] = xPoints
-                        foundMatches[0]['y'] = yPoints
-                        
-                    else:
-                        # If the trace is not on the graph, add it.
-                        figureColors: tuple[str] = ('#FF6969',
-                                                    '#FFB860', 
-                                                    '#FAFF71', 
-                                                    '#8DFF76', 
-                                                    '#58F1FF', 
-                                                    '#5C9AFF', 
-                                                    '#836DFF', 
-                                                    '#FF7EFF', 
-                                                    '#FFFFA9')
-                        
-                        self.fig.add_trace(go.Scatter(
-                            x=xPoints,
-                            y=yPoints,
-                            mode='markers+lines',
-                            marker=dict(size=6, 
-                                        color=figureColors[len(self.fig.data) % len(figureColors)], 
-                                        opacity=0.7),
-                            name=channelNameInGraph
-                        ))
-
-                    figUpdated = True
+                plotInDeltasGraph = ch.modeSettings.get(ch.mode + "PlotDeltasInGraph", False)
+                if updateDataInPlot(ch            = ch,
+                                    figure        = self.deltaFig, 
+                                    xPoints       = tuple(ch.deltas), 
+                                    yPoints       = None, 
+                                    plotInGraph   = plotInDeltasGraph):
+                    retDeltaGraph = self.deltaFig
 
             self.channelsLock.release()
 
-            return self.fig if figUpdated else no_update, inputWidgets, outputWidgets
+            return retFreqGraph, retDutyGraph, retDeltaGraph, inputWidgets, outputWidgets, monitorWidgets
 
         # Callback to update error messages.
         @self.app.callback(
@@ -524,13 +745,26 @@ class GUI:
                        self.events.errDate.strftime("%m/%d/%Y, %H:%M:%S"), \
                        self.events.errContent, json.dumps(loadedStore)
 
-
             if self.events.newMIDDSMessage.is_set():
                 self.events.newMIDDSMessage.clear()
                 loadedStore['error-message-div'] = 'error-message-div message-scheme'
                 return self.events.msgTitle, \
                        self.events.msgDate.strftime("%m/%d/%Y, %H:%M:%S"), \
                        self.events.msgContent, json.dumps(loadedStore)
+            
+            raise PreventUpdate
+
+        @self.app.callback(
+            Output('settings-div', 'className'),
+            Input('settings-btn', 'n_clicks'),
+            State('settings-div', 'className'),
+            prevent_initial_call=True
+        )
+        def toggleSettings(c1: int, settingsClassName: str):
+            if "hidden" in settingsClassName or "initialHidden" in settingsClassName:
+                return "settings-div"
+            else:
+                return "settings-div hidden"
 
         @self.app.callback(
             Output('error-message-div', 'className'),

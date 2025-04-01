@@ -212,9 +212,18 @@ uint16_t encodeMonitor(HWTimerChannel* hwTimer, uint8_t* outBuffer, const uint16
     }
     msgSize += snprintf(outBuffer + msgSize, maxMsgLen-msgSize, "\n");
 #else
+    uint64_t readVal;
     for(uint8_t countIndex = 0; countIndex < currentMessages; countIndex++) {
-        pop_cb64(&hwTimer->data, (uint64_t*) (outBuffer + msgSize));
+        pop_cb64(&hwTimer->data, &readVal);
+
+        // The LSB is the value of the channel (HIGH or LOW). The rest is the timestamp in internal 
+        // time. Convert to UNIX time the timestamp, shift it to the left one bit and add the value
+        // of the channel.
+        readVal = (convertFromInternalToUNIXTime(readVal >> 1) << 1) | (readVal & 0x01ULL);
+
+        memcpy(outBuffer + msgSize, &readVal, sizeof(uint64_t));
         msgSize += sizeof(uint64_t);
+        
         if((maxMsgLen - msgSize) <= sizeof(uint64_t)) {
             break;
         }
