@@ -543,7 +543,7 @@ uint8_t executeSyncSettingsCommand(const ChannelSettingsSYNC* cmdInput) {
         return 0;
     }
 
-    setSyncParameters(&hwTimers, cmdInput->frequency, cmdInput->frequency, 
+    setSyncParameters(&hwTimers, cmdInput->frequency, cmdInput->dutyCycle,
                       cmdInput->channel, convertFromUNIXTimeToInternal(cmdInput->time));
     return 1;
 }

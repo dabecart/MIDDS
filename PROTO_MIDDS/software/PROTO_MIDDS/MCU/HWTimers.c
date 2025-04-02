@@ -298,9 +298,9 @@ inline void saveTimestamp_(HWTimerChannel* channel, uint8_t addCoarseIncrement) 
         // Apply SYNC corrections to pins which aren't SYNC.
         // SYNC corrections are an interpolation between the previous HIGH or LOW measured period
         // and the ideal periods that would give an ideal clock.
-        // measured     capturedVal - lastSyncTime      measuredPeriod
-        // -------- = ------------------------------- = -------------- -> Solve for idealCapturedVal
-        //  ideal     idealCapturedVal - lastSyncTime    idealPeriod
+        // measured=>   capturedVal - lastSyncTime      measuredPeriod
+        //            ------------------------------- = -------------- -> Solve for idealCapturedVal
+        //  ideal  => idealCapturedVal - lastSyncTime    idealPeriod
         if(capturedVal >= lastSyncTime) {
             // Enters here if this capture happened AFTER the current SYNC pulse.
             if(currentSyncState == 0) {

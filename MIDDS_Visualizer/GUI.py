@@ -124,7 +124,9 @@ class GUI:
                                     "label": f"Channel {i}", 
                                     "value": i
                                 } for i in range(0, int(self.config['ProgramConfig']['CHANNEL_COUNT']))], 
-                                value=self.selectedChannelNumber),
+                                value=self.selectedChannelNumber,
+                        clearable=False
+                    ),
                     
                     html.Hr(),
 
@@ -143,7 +145,8 @@ class GUI:
                             {"label": "Monitor falling edges",  "value": "MF"},
                             {"label": "Monitor both edges",     "value": "MB"},
                         ], 
-                        value=self.config.getChannel(self.selectedChannelNumber).mode
+                        value=self.config.getChannel(self.selectedChannelNumber).mode,
+                        clearable=False
                     ),
 
                     html.Label("Signal type:", className="sidebar-label"),
@@ -168,8 +171,8 @@ class GUI:
                 html.Div([
                     html.P("You've made changes to the channel's configuration."),
                     html.Div([
+                        html.Button("Discard", id="discard-config-btn", className="config-btn"),
                         html.Button("Apply", id="apply-config-btn", className="config-btn"),
-                        html.Button("Discard", id="discard-config-btn", className="config-btn")
                     ], className="apply-config-button-div")
                 ], id="apply-config", className="apply-config hidden")
             ], id="sidebar", className="sidebar"),
@@ -236,49 +239,11 @@ class GUI:
             # Settings pane
             html.Div([
                 html.P("Settings", id="settings-title", className="settings-title"),
+                html.Div(className="settings-div-content", id="settings-div-content"),
                 html.Div([
-                    html.Section([
-                        html.Label("SYNC", className="section-title"),
-                        html.Div([
-                            html.P("Channel"),
-                            dcc.Dropdown(
-                                id="sync-channel", 
-                                options=
-                                [{
-                                    "label": "Disabled",
-                                    "value": -1,
-                                }]
-                                +
-                                [{
-                                    "label": f"Channel {i}", 
-                                    "value": i
-                                } for i in range(0, int(self.config['ProgramConfig']['CHANNEL_COUNT']))], 
-                                value=-1
-                            ),
-                            
-                            html.P("Frequency (Hz)"),
-                            dcc.Input(
-                                id="sync-frequency", className="inputPane", 
-                                type="number", min=float(0.01), max=float(100.0),
-                                placeholder="Enter SYNC frequency", 
-                                value=float(1.0)
-                            ),
-
-                            html.P("Duty Cycle (%)"),
-                            dcc.Input(
-                                id="sync-duty", className="inputPane", 
-                                type="number", min=float(0.000001), max=float(99.999999),
-                                placeholder="Enter SYNC duty cycle", 
-                                value=float(50.0)
-                            ),
-
-                        ], className="sync-row-content")
-                    ],className="sync-row"),
-                    html.Div([
-                        html.Button("Apply settings", className="config-btn", id="apply-settings-btn"),
-                        html.Button("Discard settings", className="config-btn", id="discard-settings-btn"),
-                    ], className="apply-settings-div"),
-                ], className="settings-div-content"),
+                    html.Button("Discard settings", className="config-btn", id="discard-settings-btn"),
+                    html.Button("Apply settings", className="config-btn", id="apply-settings-btn"),
+                ], className="apply-settings-div"),
             ], id="settings-div", className="settings-div initialHidden"),
 
             # Footer
@@ -450,7 +415,7 @@ class GUI:
             self.config.copyFrom(self.temporalConfig)
 
             self.config.saveConfig()
-            self.events.applyConfiguration.set()
+            self.events.applyChannelsConfiguration.set()
             self.channelsLock.release()
             return "apply-config hidden"
 
@@ -755,16 +720,109 @@ class GUI:
             raise PreventUpdate
 
         @self.app.callback(
-            Output('settings-div', 'className'),
+            Output('settings-div', 'className', allow_duplicate=True),
+            Output('settings-div-content', 'children'),
+            
             Input('settings-btn', 'n_clicks'),
+            Input('discard-settings-btn', 'n_clicks'),
             State('settings-div', 'className'),
             prevent_initial_call=True
         )
-        def toggleSettings(c1: int, settingsClassName: str):
+        def toggleSettings(c1: int, c2: int, settingsClassName: str):
+            settingsDivClassName = no_update
+            settingsDivContent = no_update
             if "hidden" in settingsClassName or "initialHidden" in settingsClassName:
-                return "settings-div"
+                # Populate the settings pane with updated data.
+                settingsDivContent = \
+                    html.Section([
+                        html.Label("SYNC", className="section-title"),
+                        html.Div([
+                            html.P("Channel"),
+                            dcc.Dropdown(
+                                id="sync-channel", 
+                                options=
+                                [{
+                                    "label": "Disabled",
+                                    "value": -1,
+                                }]
+                                +
+                                [{
+                                    "label": f"Channel {i}", 
+                                    "value": i
+                                } for i in range(0, int(self.config['ProgramConfig']['CHANNEL_COUNT']))], 
+                                value=int(self.config['SYNC']['Channel']),
+                                clearable=False
+                            ),
+                            
+                            html.P("Frequency (Hz)"),
+                            dcc.Input(
+                                id="sync-frequency", className="inputPane", 
+                                type="number", min=0.01, max=100.0,
+                                placeholder="Enter SYNC frequency", 
+                                value=float(self.config['SYNC']['Frequency']),
+                                disabled=int(self.config['SYNC']['Channel']) == -1
+                            ),
+
+                            html.P("Duty Cycle (%)"),
+                            dcc.Input(
+                                id="sync-duty", className="inputPane", 
+                                type="number", min=0.000001, max=99.999999,
+                                placeholder="Enter SYNC duty cycle", 
+                                value=float(self.config['SYNC']['DutyCycle']),
+                                disabled=int(self.config['SYNC']['Channel']) == -1
+                            ),
+
+                        ], className="sync-row-content")
+                    ],className="sync-row")             
+                
+                settingsDivClassName = "settings-div"
             else:
-                return "settings-div hidden"
+                settingsDivClassName = "settings-div hidden"
+
+            return settingsDivClassName, settingsDivContent
+
+        @self.app.callback(
+            Output('settings-div', 'className', allow_duplicate=True),
+            
+            Input('apply-settings-btn', 'n_clicks'),
+            State('sync-channel', 'value'),
+            State('sync-frequency', 'value'),
+            State('sync-duty', 'value'),
+            prevent_initial_call=True,
+            suppress_callback_exceptions=True
+        )
+        def applySettings(c1: int, syncCh: str, syncFreq: float|int, syncDuty: float|int):
+            if not self.events.deviceConnected:
+                self.events.raiseError("Cannot apply settings",
+                                       "Connect to MIDDS first by entering the serial port and clicking the 'Connect' button.")
+                raise PreventUpdate
+
+            syncFreq = float(syncFreq)
+            syncDuty = float(syncDuty)
+
+            self.config['SYNC']['Channel']   = str(syncCh)
+            self.config['SYNC']['Frequency'] = str(syncFreq)
+            self.config['SYNC']['DutyCycle'] = str(syncDuty)
+            self.config.saveConfig()
+
+            self.events.applySettings.set()
+
+            # Close the settings window.
+            return "settings-div hidden"
+
+        @self.app.callback(
+            Output('sync-frequency', 'disabled'),
+            Output('sync-duty', 'disabled'),
+            
+            Input('sync-channel', 'value'),
+            prevent_initial_call=True,
+            suppress_callback_exceptions=True
+        )
+        def updateFreqAndDutySYNCEnabled(syncCh: str):
+            if syncCh == -1:
+                return True, True
+            else:
+                return False, False
 
         @self.app.callback(
             Output('error-message-div', 'className'),

@@ -36,6 +36,11 @@ class ProgramConfiguration:
                     'SERIAL_PORT'       :   "",
                     'UPDATE_TIME_s'     :   ProgramConfiguration.UPDATE_TIME_s,
                 }
+                self.config['SYNC'] = {
+                    'Channel'           :   "-1",     # SYNC Disabled
+                    'Frequency'         :   "1.0",
+                    'DutyCycle'         :   "50.0",
+                }
                 self.channels: list[MIDDSChannel] = [
                     MIDDSChannel(number=i) for i in range(ProgramConfiguration.CHANNEL_COUNT)]
         
@@ -43,14 +48,25 @@ class ProgramConfiguration:
         self.config.read(self.configPath)
 
         # Read the general Program configuration, write missing fields as strings!
-        if 'ProgramConfig' in self.config:
-            programConfig = self.config['ProgramConfig']
-            if 'CHANNEL_COUNT' not in programConfig:
-                programConfig['CHANNEL_COUNT'] = str(ProgramConfiguration.CHANNEL_COUNT)
-            if 'SERIAL_PORT' not in programConfig:
-                programConfig['SERIAL_PORT'] = ""
-            if 'UPDATE_TIME_s' not in programConfig:
-                programConfig['UPDATE_TIME_s'] = str(ProgramConfiguration.UPDATE_TIME_s)
+        if 'ProgramConfig' not in self.config:
+            self.config['ProgramConfig'] = {}
+        programConfig = self.config['ProgramConfig']
+        if 'CHANNEL_COUNT' not in programConfig:
+            programConfig['CHANNEL_COUNT'] = str(ProgramConfiguration.CHANNEL_COUNT)
+        if 'SERIAL_PORT' not in programConfig:
+            programConfig['SERIAL_PORT'] = ""
+        if 'UPDATE_TIME_s' not in programConfig:
+            programConfig['UPDATE_TIME_s'] = str(ProgramConfiguration.UPDATE_TIME_s)
+
+        if 'SYNC' not in self.config:
+            self.config['SYNC'] = {}
+        syncConfig = self.config['SYNC']
+        if 'Channel' not in syncConfig:
+            syncConfig['Channel'] = "-1"
+        if 'Frequency' not in syncConfig:
+            syncConfig['Frequency'] = "1.0"
+        if 'DutyCycle' not in syncConfig:
+            syncConfig['DutyCycle'] = "50.0"
 
         # Read the channels' configuration.
         self.channels: list[MIDDSChannel] = []

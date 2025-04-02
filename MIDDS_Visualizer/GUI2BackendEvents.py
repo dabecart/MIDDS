@@ -9,7 +9,8 @@ class GUI2BackendEvents:
         self.closeSerialPort = threading.Event()
         self.startRecording = threading.Event()
         self.stopRecording = threading.Event()
-        self.applyConfiguration = threading.Event()
+        self.applyChannelsConfiguration = threading.Event()
+        self.applySettings = threading.Event()
 
         self.newMIDDSError = threading.Event()
         self.newMIDDSMessage = threading.Event()

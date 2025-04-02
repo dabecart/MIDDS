@@ -11,9 +11,8 @@ from datetime import datetime
 CONFIG_ROUTE = "config.ini"
 
 def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration):
-    def applyChannelsConfiguration(ser) -> bool:
-        if ser is None:
-            return False
+    def applyChannelsConfiguration(ser):
+        if ser is None: return 
         
         # Set channel configuration.
         for ch in config.channels:
@@ -37,7 +36,18 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
                     events.raiseError("MIDDS Error", newMsg.get("message", "(undefined)"))
                     break
 
-        return True
+    def sendSYNC(ser):
+        if ser is None: return False
+
+        # Set the time of the MIDDS and the SYNC channels. 
+        ser.write(
+            MIDDSParser.encodeSettingsSYNC(
+                channel   = int(config['SYNC']['Channel']),
+                frequency = float(config['SYNC']['Frequency']),
+                dutyCycle = float(config['SYNC']['DutyCycle']),
+                time=datetime.now()
+            )
+        )
 
     try:
         ser = None 
@@ -73,24 +83,20 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
                 # Read the connected to PROTO MIDDS message.
                 print(ser.readline())
 
-                # Set the time of the MIDDS without setting its SYNC channel. 
-                ser.write(
-                    MIDDSParser.encodeSettingsSYNC(
-                        channel   = -1,
-                        frequency = 1.0,
-                        dutyCycle = 50.0,
-                        time=datetime.now()
-                    )
-                )
+                sendSYNC(ser)
 
                 events.deviceConnected = True
 
                 applyChannelsConfiguration(ser)
                 events.openSerialPort.clear()
 
-            if events.applyConfiguration.is_set():
+            if events.applyChannelsConfiguration.is_set():
                 applyChannelsConfiguration(ser)
-                events.applyConfiguration.clear()
+                events.applyChannelsConfiguration.clear()
+
+            if events.applySettings.is_set():
+                sendSYNC(ser)
+                events.applySettings.clear()
 
             if events.startRecording.is_set():
                 events.recording = True
