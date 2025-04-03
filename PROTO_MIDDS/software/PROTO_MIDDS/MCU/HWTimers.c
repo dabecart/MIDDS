@@ -16,7 +16,10 @@
 
 volatile uint64_t coarse = 0;
 volatile uint64_t newCoarse = 0;
-volatile uint64_t lastSyncTime = 0;
+// Time when the sync was measured by the TIMx.
+volatile uint64_t lastSyncMeasured = 0;
+// Time when the sync was supposed to be measured by an ideal TIMx.
+volatile uint64_t lastSyncIdeal = 0;
 volatile uint8_t  currentSyncState = 0xFF;   // 0 = Low, 1 = High, 0xFF = Unknown/Not being used.
 volatile uint8_t  syncPulseCount = 0;
 
@@ -263,7 +266,7 @@ inline void saveTimestamp_(HWTimerChannel* channel, uint8_t addCoarseIncrement) 
     if(channel->isSYNC) {
         if(currentGPIOValue) {
             // If the current GPIO level is HIGH, that means that the LOW period has just occurred.
-            hwTimers.measuredPeriodLowSYNC = capturedVal - lastSyncTime;
+            hwTimers.measuredPeriodLowSYNC = capturedVal - lastSyncMeasured;
 
             if(newSyncTime != -1) {
                 // The computer has requested to set the MIDDS time.
@@ -277,54 +280,63 @@ inline void saveTimestamp_(HWTimerChannel* channel, uint8_t addCoarseIncrement) 
                     newCoarse = coarse + 0x10000ULL;
                 }
 
+                lastSyncIdeal = newSyncTime;
+
                 newSyncTime = -1;
 
                 // Set the SYNC as not synchronized.
                 currentSyncState = 0xFF;
                 syncPulseCount = -1;
+            }else {
+                lastSyncIdeal += hwTimers.idealPeriodLowSYNC;
             }
         }else {
             // If the current GPIO level is LOW, that means that the HIGH period has just occurred.
-            hwTimers.measuredPeriodHighSYNC = capturedVal - lastSyncTime;
+            hwTimers.measuredPeriodHighSYNC = capturedVal - lastSyncMeasured;
+            lastSyncIdeal += hwTimers.idealPeriodHighSYNC;
         }
-        lastSyncTime = capturedVal;
+        lastSyncMeasured = capturedVal;
 
         if(syncPulseCount >= HW_TIMER_GOOD_SYNCS_UNTIL_SYNCHRONIZED){
             currentSyncState = currentGPIOValue;
         }else{
             syncPulseCount++;
         }
-    }else if(currentSyncState != 0xFF){
-        // Apply SYNC corrections to pins which aren't SYNC.
+    }
+    
+    // Apply SYNC corrections only if SYNC is ready.
+    if(currentSyncState != 0xFF){
         // SYNC corrections are an interpolation between the previous HIGH or LOW measured period
         // and the ideal periods that would give an ideal clock.
-        // measured=>   capturedVal - lastSyncTime      measuredPeriod
-        //            ------------------------------- = -------------- -> Solve for idealCapturedVal
-        //  ideal  => idealCapturedVal - lastSyncTime    idealPeriod
-        if(capturedVal >= lastSyncTime) {
+        // captureMeasured - lastSyncMeasured   measuredSyncPeriod
+        // ---------------------------------- = ------------------ --> Calculate captureIdeal.
+        //    captureIdeal - lastSyncIdeal        realSyncPeriod
+        if(capturedVal >= lastSyncMeasured) {
             // Enters here if this capture happened AFTER the current SYNC pulse.
             if(currentSyncState == 0) {
-                capturedVal = lastSyncTime + 
-                            hwTimers.idealPeriodLowSYNC*(capturedVal - lastSyncTime)/
-                            hwTimers.measuredPeriodLowSYNC;
+                capturedVal = lastSyncIdeal + 
+                              hwTimers.idealPeriodLowSYNC*(capturedVal - lastSyncMeasured)/
+                              hwTimers.measuredPeriodLowSYNC;
             }else {
-                capturedVal = lastSyncTime + 
-                            hwTimers.idealPeriodHighSYNC*(capturedVal - lastSyncTime)/
-                            hwTimers.measuredPeriodHighSYNC;
+                capturedVal = lastSyncIdeal + 
+                              hwTimers.idealPeriodHighSYNC*(capturedVal - lastSyncMeasured)/
+                              hwTimers.measuredPeriodHighSYNC;
             }
         }else {
-            // Enters here if this capture happened BEFORE the current SYNC pulse.
+            // Enters here if this capture happened BEFORE the current SYNC pulse. Same formulas but
+            // with a little of unsigned math magic.
             if(currentSyncState == 0) {
-                capturedVal = lastSyncTime - 
-                            hwTimers.idealPeriodLowSYNC*(lastSyncTime - capturedVal)/
-                            hwTimers.measuredPeriodLowSYNC;
+                capturedVal = lastSyncIdeal - 
+                              hwTimers.idealPeriodLowSYNC*(lastSyncMeasured - capturedVal)/
+                              hwTimers.measuredPeriodLowSYNC;
             }else {
-                capturedVal = lastSyncTime -
-                            hwTimers.idealPeriodHighSYNC*(lastSyncTime - capturedVal)/
-                            hwTimers.measuredPeriodHighSYNC;
+                capturedVal = lastSyncIdeal -
+                              hwTimers.idealPeriodHighSYNC*(lastSyncMeasured - capturedVal)/
+                              hwTimers.measuredPeriodHighSYNC;
             }
         }
     }
+
     // TODO: Make currentSyncState = 0xFF if enough time has passed since the last SYNC.
     
     // Move the value to the left one bit. The LSB will signal the current state of the GPIO.

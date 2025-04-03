@@ -1,13 +1,16 @@
 import dash
-from dash import dcc, html, no_update, ClientsideFunction, clientside_callback
+from dash import dcc, html, no_update, ClientsideFunction, ctx, ALL
 from dash.exceptions import PreventUpdate
 from dash.dependencies import Input, Output, State
 import plotly.graph_objs as go
+
+import json
+import copy
+
+from MIDDSChannel import MIDDSChannel, MIDDSChannelOptions
+from MIDDSParser import MIDDSParser
 from ProgramConfiguration import ProgramConfiguration
 from GUI2BackendEvents import GUI2BackendEvents
-import json
-from MIDDSChannel import MIDDSChannel, MIDDSChannelOptions
-import copy
 
 class GUI:
     def __init__(self, lock, events: GUI2BackendEvents, config):
@@ -165,7 +168,8 @@ class GUI:
                     html.Hr(),
 
                     html.Label("Channel functions:", className="sidebar-label"),
-                    html.Button("Clear data", id="clear-data-btn", className="clear-data-btn"),
+                    html.Button("Clear channel's data", id="clear-data-btn", className="clear-data-btn"),
+                    html.Button("Clear all channels' data", id="clear-all-data-btn", className="clear-data-btn"),
                 ], className="sidebar-content"),
 
                 html.Div([
@@ -255,6 +259,7 @@ class GUI:
                 ])
             ], className="footer"),
             
+            html.Div(id="dummy", style={"display": "none"}),
             # Interval Component for Live Updates
             dcc.Interval(id='interval-component', interval=self.interval, n_intervals=0),
             dcc.Store(id="clientServerStore", data='{}')
@@ -397,6 +402,14 @@ class GUI:
         )
         def clearDataPoints(clicks):
             self.config.getChannel(self.selectedChannelNumber).clearValues()
+
+        @self.app.callback(
+            Input("clear-all-data-btn", "n_clicks"),
+            prevent_initial_call=True
+        )
+        def clearAllDataPoints(clicks):
+            for ch in self.config.channels:
+                ch.clearValues()
 
         # Callback for applying the new configuration.
         @self.app.callback(
@@ -618,8 +631,12 @@ class GUI:
                         html.P(title),
                         html.P(ch.signalType),
                         html.P(f"Level:      {ch.channelLevel}"),
-                        html.Button("ON", id=f"gpio-on-{ch.number}", className="gpio-btn"),
-                        html.Button("OFF", id=f"gpio-off-{ch.number}", className="gpio-btn"),
+                        html.Button("HIGH", 
+                                    id={"type": "gpio-set-high", "index": ch.number}, 
+                                    className="gpio-btn"),
+                        html.Button("LOW",  
+                                    id={"type": "gpio-set-low", "index": ch.number}, 
+                                    className="gpio-btn"),
                     ]
 
                     outputWidgets.append(
@@ -685,6 +702,44 @@ class GUI:
             self.channelsLock.release()
 
             return retFreqGraph, retDutyGraph, retDeltaGraph, inputWidgets, outputWidgets, monitorWidgets
+
+        @self.app.callback(
+            Output("dummy", "children", allow_duplicate=True), 
+            Input({"type": "gpio-set-high", "index": ALL}, "n_clicks"),
+            prevent_initial_call=True
+        )
+        def handleGPIOSetHigh(n_clicks: list[int]):
+            if not any(n_clicks):
+                # If all are None, then, no click was done.
+                raise PreventUpdate
+            
+            # ctx.triggered_id["index"] = Returns the ID of the triggered button.
+            ch = self.config.getChannel(ctx.triggered_id["index"])
+            if ch is None:
+                self.events.raiseError("Cannot set channel level", "Invalid channel number.")
+                return ""
+            
+            self.events.commandContent += MIDDSParser.encodeOutput(ch.number, 1, 0)
+            self.events.sendCommandToMIDDS.set()
+
+        @self.app.callback(
+            Output("dummy", "children", allow_duplicate=True), 
+            Input({"type": "gpio-set-low", "index": ALL}, "n_clicks"),
+            prevent_initial_call=True
+        )
+        def handleGPIOSetLow(n_clicks):
+            if not any(n_clicks):
+                # If all are None, then, no click was done.
+                raise PreventUpdate
+
+            # ctx.triggered_id["index"] = Returns the ID of the triggered button.
+            ch = self.config.getChannel(ctx.triggered_id["index"])
+            if ch is None:
+                self.events.raiseError("Cannot set channel level", "Invalid channel number.")
+                return ""
+            
+            self.events.commandContent += MIDDSParser.encodeOutput(ch.number, 0, 0)
+            self.events.sendCommandToMIDDS.set()
 
         # Callback to update error messages.
         @self.app.callback(
@@ -797,8 +852,29 @@ class GUI:
                                        "Connect to MIDDS first by entering the serial port and clicking the 'Connect' button.")
                 raise PreventUpdate
 
+            if syncCh != -1:
+                selCh = self.config.getChannel(syncCh)
+                if selCh is None:
+                    self.events.raiseError("Cannot apply SYNC settings",
+                                          f"Channel {syncCh} is not valid.")
+                    raise PreventUpdate
+                elif selCh.mode != "MB":
+                    self.events.raiseError("Cannot apply SYNC settings",
+                                          f"Channel {syncCh} is not in 'Monitoring Both Edges' mode. "
+                                           "Set it, apply the channel configuration and the retry to apply settings.")
+                    raise PreventUpdate
+
             syncFreq = float(syncFreq)
+            if syncFreq < 0.01 or syncFreq > 100.0:
+                    self.events.raiseError("Cannot apply SYNC settings",
+                                          f"SYNC frequency {syncFreq} does not fall in the valid range [0.01, 100] Hz")
+                    raise PreventUpdate
+
             syncDuty = float(syncDuty)
+            if syncDuty <= 0 or syncDuty >= 100.0:
+                    self.events.raiseError("Cannot apply SYNC settings",
+                                          f"SYNC duty cycle {syncDuty} does not fall in the valid range (0, 100) %")
+                    raise PreventUpdate
 
             self.config['SYNC']['Channel']   = str(syncCh)
             self.config['SYNC']['Frequency'] = str(syncFreq)

@@ -39,7 +39,7 @@
 // Input channels can return their state and also their frequency and duty cycle. The frequency gets
 // calculated with timestamps. At the moment, only Timer channels can return the frequency.
 #define COMMS_SETT_CH_INPUT              "IN"
-// Output channels can set their state. Not implemented at the moment.
+// Output channels can set their state.
 #define COMMS_SETT_CH_OUTPUT             "OU"
 // Frequency channels are similar to input channels but they calculate their frequency not by their
 // timestamps but by an internal counter, meaning higher frequencies can be detected. Still not 
@@ -60,6 +60,7 @@
 
 #define COMMS_ERROR_INVALID_CHANNEL      "RR_INVALID_CHANNEL"
 #define COMMS_ERROR_INVALID_MODE         "RR_INVALID_MODE"
+#define COMMS_ERROR_INVALID_VALUE        "RR_INVALID_VALUE"
 #define COMMS_ERROR_INVALID_SIGNAL_TYPE  "RR_INVALID_SIGNAL_TYPE"
 #define COMMS_ERROR_CH_SETT_PARAMS       "RR_CH_SETT_PARAMS"
 #define COMMS_ERROR_SYNC_PARAMS          "RR_SYNC_PARAMS"

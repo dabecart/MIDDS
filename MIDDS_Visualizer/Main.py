@@ -109,6 +109,12 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
                 events.raiseMessage("Stopped recording", f"The recording is saved in '{MIDDSParser.recordingFileName}'.")
                 events.stopRecording.clear()
 
+            if events.sendCommandToMIDDS.is_set():
+                if ser is not None:
+                    ser.write(events.commandContent)
+                events.commandContent = b''
+                events.sendCommandToMIDDS.clear()
+
             if ser is not None:
                 try:
                     while True:

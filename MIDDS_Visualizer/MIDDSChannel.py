@@ -57,7 +57,7 @@ class MIDDSChannel:
         if dt.total_seconds() > MIDDSChannel.TIMEOUT_UNTIL_UNKNOWN_LEVEL_s:
             return "?"
         else:
-            return f"{self._frequency:.8f}"
+            return f"{self._frequency:.9f}"
     
     @property
     def dutyCycle(self) -> float:
@@ -65,7 +65,7 @@ class MIDDSChannel:
         if dt.total_seconds() > MIDDSChannel.TIMEOUT_UNTIL_UNKNOWN_LEVEL_s:
             return "?"
         else:
-            return f"{self._dutyCycle:.8f}"
+            return f"{self._dutyCycle:.9f}"
 
     def setFrequencyAndDutyCycle(self, freq: float, dutyCycle: float, time: datetime):
         self._frequency = freq
@@ -102,7 +102,8 @@ class MIDDSChannel:
                 msg += MIDDSParser.encodeInput(self.number, 0, 0)
             if self.modeSettings.get("INRequestFrequency", False):
                 msg += MIDDSParser.encodeFrequency(self.number, 0)
-        
+        elif self.mode == "OU":
+                msg += MIDDSParser.encodeInput(self.number, 0, 0)
         return msg
 
     def updateValues(self, values: dict[str,any]):
@@ -118,12 +119,15 @@ class MIDDSChannel:
                     self.channelLevel = "HIGH"
                 else:
                     self.channelLevel = "?"
-            elif msgCommand == MIDDSParser.COMMS_MSG_FREQ_HEAD:
-                self.setFrequencyAndDutyCycle(
-                    freq        = values.get("frequency", -1.0),
-                    dutyCycle   = values.get("dutyCycle", -1.0),
-                    time        = values.get("time", datetime.now()),
-                )
+        elif self.mode == "OU":
+            if msgCommand == MIDDSParser.COMMS_MSG_INPUT_HEAD:
+                read = values.get("readValue", "?")
+                if read == 0:
+                    self.channelLevel = "LOW"
+                elif read == 1:
+                    self.channelLevel = "HIGH"
+                else:
+                    self.channelLevel = "?"
         elif self.mode in ("MR", "MF", "MB"):
             readSamples: list[int] = values.get("samples", None)
             if readSamples is None: 
@@ -172,7 +176,7 @@ class MIDDSChannel:
             self._fallingDelta = -1.0
 
     def calculateChannelFrequencyFromTimestamps(self):
-        if len(self.samples) < 10: return
+        if len(self.samples) < 3: return
 
         sampleList: tuple[int] = tuple(self.samples)
         

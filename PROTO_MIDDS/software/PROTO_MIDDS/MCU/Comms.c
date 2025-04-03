@@ -296,10 +296,7 @@ uint8_t decodeSettingsChannel(const uint8_t* dataBuffer, ChannelSettingsChannel 
     if(strncmp(modeIdentifier, COMMS_SETT_CH_INPUT, strlen(COMMS_SETT_CH_INPUT)) == 0) {
         decodedMsg->mode = CHANNEL_INPUT;
     }else if(strncmp(modeIdentifier, COMMS_SETT_CH_OUTPUT, strlen(COMMS_SETT_CH_OUTPUT)) == 0) {
-        // TODO: Cannot set channel as output for the moment.
-        // decodedMsg->mode = CHANNEL_OUTPUT;
-        sendErrorMessage(COMMS_ERROR_INTERNAL);
-        return 0;
+        decodedMsg->mode = CHANNEL_OUTPUT;
     }else if(strncmp(modeIdentifier, COMMS_SETT_CH_FREQUENCY, strlen(COMMS_SETT_CH_FREQUENCY)) == 0) {
     //     decodedMsg->mode = CHANNEL_FREQUENCY;
         // TODO: Frequency mode is still not implemented. Only input channels can calculate 
@@ -449,6 +446,9 @@ uint8_t executeOutputCommand(const ChannelOutput* cmdInput) {
             HAL_GPIO_WritePin(timerCh->timerHandler->gpioPort, 
                 timerCh->timerHandler->gpioPin, 
                 GPIO_PIN_SET);
+        }else {
+            sendErrorMessage(COMMS_ERROR_INVALID_VALUE);
+            return 0;
         }
     }else if(ch->type == CHANNEL_GPIO) {
         GPIOChannel* gpioCh = &ch->data.gpio;
@@ -456,6 +456,9 @@ uint8_t executeOutputCommand(const ChannelOutput* cmdInput) {
             HAL_GPIO_WritePin(gpioCh->gpioPort, gpioCh->gpioPin, GPIO_PIN_RESET);
         }else if(cmdInput->value == GPIO_HIGH) {
             HAL_GPIO_WritePin(gpioCh->gpioPort, gpioCh->gpioPin, GPIO_PIN_SET);
+        }else {
+            sendErrorMessage(COMMS_ERROR_INVALID_VALUE);
+            return 0;
         }
     }
     return 1;
@@ -522,8 +525,8 @@ uint8_t executeSyncSettingsCommand(const ChannelSettingsSYNC* cmdInput) {
             return 0;
         }
     
-        // Only "Timer" channels can be used as SYNC.
-        if(ch->type != CHANNEL_TIMER) {
+        // Only "Timer" channels can be used as SYNC and when set to "monitoring both" mode.
+        if((ch->type != CHANNEL_TIMER) || (ch->mode != CHANNEL_MONITOR_BOTH_EDGES)) {
             sendErrorMessage(COMMS_ERROR_SYNC_PARAMS);
             return 0;
         }

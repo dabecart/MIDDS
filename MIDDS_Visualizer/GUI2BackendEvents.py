@@ -12,6 +12,9 @@ class GUI2BackendEvents:
         self.applyChannelsConfiguration = threading.Event()
         self.applySettings = threading.Event()
 
+        self.sendCommandToMIDDS = threading.Event()
+        self.commandContent: bytes = b''
+
         self.newMIDDSError = threading.Event()
         self.newMIDDSMessage = threading.Event()
 

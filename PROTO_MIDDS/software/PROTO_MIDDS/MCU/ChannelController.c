@@ -12,6 +12,7 @@
 
 #include "ChannelController.h"
 #include "MainMCU.h"
+#include "stm32g4xx_hal_tim.h"
 
 void initChannelController(ChannelController* chCtrl, SPI_HandleTypeDef* hspi) {
     if(chCtrl == NULL || hspi == NULL) return;
@@ -104,52 +105,86 @@ void applyTimerChannelConfig_(Channel* ch) {
 
     HWTimerChannel* timCh = ch->data.timer.timerHandler;
 
-    if(ch->mode == CHANNEL_DISABLED) {
-        setHWTimerEnabled(timCh, 0);
-        return;
+    // Always deinit first.
+    setHWTimerEnabled(timCh, 0);
+    
+    // These lines are inside HAL_TIM_IC_Stop_IT but they do not disable the whole timer.
+    TIM_CCxChannelCmd(timCh->htim->Instance, timCh->timChannel, TIM_CCx_DISABLE);
+    TIM_CHANNEL_STATE_SET(timCh->htim, timCh->timChannel, HAL_TIM_CHANNEL_STATE_READY);
+    TIM_CHANNEL_N_STATE_SET(timCh->htim, timCh->timChannel, HAL_TIM_CHANNEL_STATE_READY);
+
+    HAL_GPIO_DeInit(timCh->gpioPort, timCh->gpioPin);
+
+    if(ch->mode == CHANNEL_DISABLED) return;
+
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    if(ch->mode == CHANNEL_OUTPUT){
+        GPIO_InitStruct.Pull = GPIO_NOPULL;
+        GPIO_InitStruct.Pin = timCh->gpioPin;
+        GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+        GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
+    
+        HAL_GPIO_Init(timCh->gpioPort, &GPIO_InitStruct);
+    }else{
+        // Taken from stm32g4xx_hal_msp.c.
+        GPIO_InitStruct.Pin = timCh->gpioPin;
+        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+        GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+
+        if(timCh->htim->Instance==TIM1)         GPIO_InitStruct.Alternate = GPIO_AF6_TIM1;
+        else if(timCh->htim->Instance==TIM2)    GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
+        else if(timCh->htim->Instance==TIM3)    GPIO_InitStruct.Alternate = GPIO_AF2_TIM3;
+        else if(timCh->htim->Instance==TIM4)    GPIO_InitStruct.Alternate = GPIO_AF2_TIM4;
+        else                                    return;
+        
+        HAL_GPIO_Init(timCh->gpioPort, &GPIO_InitStruct);
+
+        // Set the mode of the HW Timers.
+        TIM_IC_InitTypeDef sConfigIC = {0};
+        sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
+        sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
+        sConfigIC.ICFilter = 0;
+    
+        if(ch->mode == CHANNEL_MONITOR_RISING_EDGES) {
+            sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
+        }else if(ch->mode == CHANNEL_MONITOR_FALLING_EDGES) {
+            sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_FALLING;
+        }else if((ch->mode == CHANNEL_MONITOR_BOTH_EDGES) || 
+                 (ch->mode == CHANNEL_INPUT) || 
+                 (ch->mode == CHANNEL_FREQUENCY)) {
+            sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_BOTHEDGE;
+        }
+    
+        if (HAL_TIM_IC_ConfigChannel(timCh->htim,
+                                     &sConfigIC, 
+                                     timCh->timChannel) != HAL_OK) {
+            // TODO: Handle this...
+        }
+
+        HAL_TIM_IC_Start_IT(timCh->htim, timCh->timChannel);
+        // Enable the interruptions on the channel.
+        setHWTimerEnabled(timCh, 1);
     }
-
-    // Set the mode of the HW Timers.
-    TIM_IC_InitTypeDef sConfigIC = {0};
-    sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
-    sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
-    sConfigIC.ICFilter = 0;
-
-    if(ch->mode == CHANNEL_MONITOR_RISING_EDGES) {
-        sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
-    }else if(ch->mode == CHANNEL_MONITOR_FALLING_EDGES) {
-        sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_FALLING;
-    }else if((ch->mode == CHANNEL_MONITOR_BOTH_EDGES) || 
-             (ch->mode == CHANNEL_INPUT) || 
-             (ch->mode == CHANNEL_FREQUENCY)) {
-        sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_BOTHEDGE;
-    }
-
-    if (HAL_TIM_IC_ConfigChannel(timCh->htim,
-                                 &sConfigIC, 
-                                 timCh->timChannel) != HAL_OK) {
-        // TODO: Handle this...
-    }
-
-    // Enable the interruptions on the channel.
-    setHWTimerEnabled(timCh, 1);
 }
 
 void applyGPIOChannelConfig_(Channel* ch) {
     if(ch->type != CHANNEL_GPIO) return;
 
+    // Always deinit first.
+    GPIOChannel* gpio = &ch->data.gpio;
+    HAL_GPIO_DeInit(gpio->gpioPort, gpio->gpioPin);
+
+    if(ch->mode == CHANNEL_DISABLED) return;
+
     // Set the GPIO configuration of the MCU.
     GPIO_InitTypeDef GPIO_InitStruct = {0};
     GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Pin = gpio->gpioPin;
+    GPIO_InitStruct.Mode = (ch->mode == CHANNEL_OUTPUT) ? GPIO_MODE_OUTPUT_PP : GPIO_MODE_INPUT;
+    GPIO_InitStruct.Speed = GPIO_SPEED_HIGH;
 
-    GPIOChannel* gpio = &ch->data.gpio;
-    if(ch->mode == CHANNEL_DISABLED) {
-        HAL_GPIO_DeInit(gpio->gpioPort, gpio->gpioPin);
-    }else {
-        GPIO_InitStruct.Pin = gpio->gpioPin;
-        GPIO_InitStruct.Mode = (ch->mode == CHANNEL_OUTPUT) ? GPIO_MODE_OUTPUT_PP : GPIO_MODE_INPUT;
-        HAL_GPIO_Init(gpio->gpioPort, &GPIO_InitStruct);
-    }
+    HAL_GPIO_Init(gpio->gpioPort, &GPIO_InitStruct);
 }
 
 void setShiftRegisterValues(ChannelController* chCtrl) {
@@ -163,14 +198,8 @@ void setShiftRegisterValues(ChannelController* chCtrl) {
         ch = &chCtrl->channels[i];
         timCh = &ch->data.timer;
         
-        RE = ((timCh->signalType == CHANNEL_SIGNAL_TTL) && 
-              ((ch->mode == CHANNEL_INPUT) || 
-                (ch->mode == CHANNEL_MONITOR_BOTH_EDGES) || 
-                (ch->mode == CHANNEL_MONITOR_FALLING_EDGES) || 
-                (ch->mode == CHANNEL_MONITOR_RISING_EDGES) || 
-                (ch->mode == CHANNEL_FREQUENCY)
-              )
-             ) || ((timCh->signalType == CHANNEL_SIGNAL_LVDS) && (ch->mode == CHANNEL_OUTPUT));
+        RE = ((timCh->signalType == CHANNEL_SIGNAL_TTL) && (ch->mode != CHANNEL_DISABLED)) || 
+             ((timCh->signalType == CHANNEL_SIGNAL_LVDS) && (ch->mode == CHANNEL_OUTPUT));
         
         DE = (timCh->signalType == CHANNEL_SIGNAL_LVDS);
         
