@@ -14,13 +14,14 @@
 #ifndef MAIN_MCU_h
 #define MAIN_MCU_h
 
-#include "main.h"
-#include "HWTimers.h"
-#include "Comms.h"
 #include "stm32g4xx_hal.h"
 
-#include "usb_device.h"
-#include "usbd_cdc_if.h"
+#include "main.h"
+
+#include "HWTimers.h"
+#include "Comms.h"
+#include "ChannelController.h"
+#include "ST7735.h"
 
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv DEFINES vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 #define MCU_TX_IN_ASCII 0
@@ -35,11 +36,13 @@
  * @param htim2. Defined in main.c.
  * @param htim3. Defined in main.c.
  * @param htim4. Defined in main.c.
+ * @param hspi1. Defined in main.c.
 ***************************************************************************************************/
 void initMCU(TIM_HandleTypeDef* htim1,
              TIM_HandleTypeDef* htim2, 
              TIM_HandleTypeDef* htim3, 
-             TIM_HandleTypeDef* htim4);
+             TIM_HandleTypeDef* htim4,
+             SPI_HandleTypeDef* hspi1);
 
 /**************************************** FUNCTION *************************************************
  * @brief Main loop of the MCU.
@@ -48,5 +51,6 @@ void loopMCU();
 
 // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv EXTERNAL VARIABLES vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 extern HWTimers hwTimers;
+extern ChannelController chCtrl;
 
 #endif // MAIN_MCU_h

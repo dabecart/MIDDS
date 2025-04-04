@@ -14,40 +14,60 @@
 #include "MainMCU.h"
 
 HWTimers hwTimers;
-extern USBD_HandleTypeDef hUsbDeviceFS;
+ChannelController chCtrl;
 
 void initMCU(TIM_HandleTypeDef* htim1,
              TIM_HandleTypeDef* htim2, 
              TIM_HandleTypeDef* htim3, 
-             TIM_HandleTypeDef* htim4)
+             TIM_HandleTypeDef* htim4,
+             SPI_HandleTypeDef* hspi1)
 {
+    initComms();
+
+    ST7735_Init(hspi1);
+    ST7735_FillScreenFast(ST7735_BLACK);
+
     initHWTimers(&hwTimers, htim1, htim2, htim3, htim4);
 
+    initChannelController(&chCtrl, hspi1);
+    
     startHWTimers(&hwTimers);
 
-    // Wait for a few seconds and try to grab any SYNC pulse.
-    HAL_Delay(2000);
+    // // Wait for a few seconds and try to grab any SYNC pulse.
+    // HAL_Delay(3000);
 
-    if(hwTimers.measuredPeriodHighSYNC != 0 || hwTimers.measuredPeriodLowSYNC != 0) {
-        // It is using a SYNC pulse, clear all current buffers.
-        for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
-            clearHWTimer(hwTimers.channels+i);
-        }
-    }
-
-    // Wait until the USB gets connected.
-    while(hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED){}
-
+    // if(hwTimers.measuredPeriodHighSYNC != 0 || hwTimers.measuredPeriodLowSYNC != 0) {
+    //     // It is using a SYNC pulse, clear all current buffers.
+    //     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
+    //         clearHWTimer(hwTimers.channels+i);
+    //     }
+    // }
 }
 
 void loopMCU() {
-    static uint8_t outMsg[1024];
-    
+    // Receive commands and generate the responses.
+    receiveData();
+
+    // Generate the recurrent messages.
+    ChannelMessage tempMsg = {};
+    Channel* ch;
     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
-        if(readyToPrintHWTimer(hwTimers.channels + i)) {
-            uint16_t msgLen = generateMonitorMessage(hwTimers.channels + i, outMsg, sizeof(outMsg));
-            while(CDC_Transmit_FS(outMsg, msgLen) == USBD_BUSY){}
+        ch = chCtrl.channels + i;
+
+        // Recurrent message for Monitor mode.
+        if((ch->mode == CHANNEL_MONITOR_BOTH_EDGES) || 
+           (ch->mode == CHANNEL_MONITOR_RISING_EDGES) || 
+           (ch->mode == CHANNEL_MONITOR_FALLING_EDGES)) {
+            if((ch->type == CHANNEL_TIMER) && readyToPrintHWTimer(ch->data.timer.timerHandler)) {
+                tempMsg.monitor = ch->data.timer.timerHandler;
+                encodeGPIOMessage(GPIO_MSG_MONITOR, tempMsg); 
+            }else if(ch->type == CHANNEL_GPIO) {
+                // Not implemented.
+                continue;
+            }
         }
     }
 
+    // Send the data.
+    sendData();
 }

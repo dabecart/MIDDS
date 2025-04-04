@@ -31,7 +31,7 @@ void empty_cb(CircularBuffer* pCB) {
 }
 
 uint8_t push_cb(CircularBuffer* pCB, uint8_t ucItem) {
-    if((pCB->len+1) >= pCB->size) return 0;
+    if((pCB->len+1) > pCB->size) return 0;
 
     pCB->data[pCB->head] = ucItem;
     pCB->head = (pCB->head + 1) % pCB->size;
@@ -42,7 +42,7 @@ uint8_t push_cb(CircularBuffer* pCB, uint8_t ucItem) {
 uint8_t pushN_cb(CircularBuffer* pCB, uint8_t* items, uint32_t count) {
     if(items == NULL) return 0;
 
-    if((pCB->len + count) >= pCB->size) return 0;
+    if((pCB->len + count) > pCB->size) return 0;
     
     uint32_t ullNextHead = pCB->head + count;
     if(ullNextHead > pCB->size) {
@@ -70,9 +70,9 @@ uint8_t pop_cb(CircularBuffer* pCB, uint8_t* item) {
 uint8_t popN_cb(CircularBuffer* pCB, uint32_t count, uint8_t* items) {
     if(pCB->len < count) return 0;
     
-    uint32_t ullNextTail = pCB->tail + count;
+    uint32_t nextTail = pCB->tail + count;
     if(items != NULL) {
-        if(ullNextTail > pCB->size) {
+        if(nextTail > pCB->size) {
             uint32_t ullTailBytes = pCB->size-pCB->tail;
             memcpy(items, pCB->data+pCB->tail, ullTailBytes);
             memcpy(items + ullTailBytes, pCB->data, count - ullTailBytes);
@@ -81,7 +81,7 @@ uint8_t popN_cb(CircularBuffer* pCB, uint32_t count, uint8_t* items) {
         }
     }
 
-    pCB->tail = ullNextTail % pCB->size;
+    pCB->tail = nextTail % pCB->size;
     pCB->len -= count;
     return 1;
 }
@@ -98,8 +98,8 @@ uint8_t peekN_cb(CircularBuffer* pCB, uint32_t count, uint8_t* items) {
 
     if(pCB->len < count) return 0;
     
-    uint32_t ullNextTail = pCB->tail + count;
-    if(ullNextTail > pCB->size) {
+    uint32_t nextTail = pCB->tail + count;
+    if(nextTail > pCB->size) {
         uint32_t ullTailBytes = pCB->size-pCB->tail;
         memcpy(items, pCB->data+pCB->tail, ullTailBytes);
         memcpy(items + ullTailBytes, pCB->data, count - ullTailBytes);

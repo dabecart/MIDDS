@@ -13,7 +13,25 @@
         "string_view": "c",
         "comms.h": "c",
         "usbd_cdc_if.h": "c",
-        "usb_device.h": "c"
+        "usb_device.h": "c",
+        "stm32g4xx_hal.h": "c",
+        "commsprotocol.h": "c",
+        "system_error": "c",
+        "random": "c",
+        "fstream": "c",
+        "iostream": "c",
+        "istream": "c",
+        "limits": "c",
+        "new": "c",
+        "ostream": "c",
+        "stdexcept": "c",
+        "streambuf": "c",
+        "functional": "c",
+        "algorithm": "c",
+        "stm32g4xx_hal_tim.h": "c"
     },
-    "makefile.makefilePath": "Debug\\makefile"
+    "makefile.makefilePath": "Debug\\makefile",
+    "cSpell.words": [
+        "MIDDS"
+    ]
 }

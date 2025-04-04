@@ -19,10 +19,11 @@ void init_cb64(CircularBuffer64* pCB, uint32_t bufferSize) {
     pCB->len  = 0;
     pCB->head = 0;
     pCB->tail = 0;
+    pCB->locked = 0;
 }
 
 inline uint8_t push_cb64(CircularBuffer64* pCB, uint64_t ucItem) {
-    if((pCB->len+1) >= pCB->size) return 0;
+    if(pCB->locked || ((pCB->len+1) > pCB->size)) return 0;
 
     pCB->data[pCB->head] = ucItem;
     pCB->head = (pCB->head + 1) % pCB->size;
