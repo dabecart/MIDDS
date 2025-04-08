@@ -567,13 +567,18 @@ void establishConnection(uint8_t connect) {
         empty_cb(&outputBuffer);
         pushN_cb(&outputBuffer, (uint8_t*) WELCOME_MSG, strlen(WELCOME_MSG));
     }else {
-        // Set all channels as disabled.
+        // Set all channels as disabled before disconnection.
         for(int i = 0; i < CH_COUNT; i++) {
             Channel* ch = getChannelFromNumber(i);
             if(ch == NULL) continue;
 
             ch->mode = CHANNEL_DISABLED;
             applyChannelConfiguration(ch);
+
+            if(ch->type == CHANNEL_TIMER) {
+                // Erase the buffers.
+                empty_cb64(&ch->data.timer.timerHandler->data);
+            }
         }
         setShiftRegisterValues(&chCtrl);
 

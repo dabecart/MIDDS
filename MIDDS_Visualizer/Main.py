@@ -14,27 +14,33 @@ def backendProcess(events: GUI2BackendEvents, lock, config: ProgramConfiguration
     def applyChannelsConfiguration(ser):
         if ser is None: return 
         
-        # Set channel configuration.
-        for ch in config.channels:
-            ser.write(
-                MIDDSParser.encodeSettingsChannel(
-                    channel = ch.number,
-                    mode = ch.mode,
-                    signal = ch.signal
+        try: 
+            # Set channel configuration.
+            for ch in config.channels:
+                ser.write(
+                    MIDDSParser.encodeSettingsChannel(
+                        channel = ch.number,
+                        mode = ch.mode,
+                        signal = ch.signal
+                    )
                 )
-            )
-            
-            time.sleep(5e-3) #Await a response from MIDDS (if any). 
-            
-            while True:
-                newMsg = MIDDSParser.decodeMessage(ser, events.recording)
-                if newMsg is None:
-                    # No messages, continue with the next channel's settings.
-                    break
+                
+                time.sleep(5e-3) #Await a response from MIDDS (if any). 
+                
+                while True:
+                    newMsg = MIDDSParser.decodeMessage(ser, events.recording)
+                    if newMsg is None:
+                        # No messages, continue with the next channel's settings.
+                        break
 
-                if newMsg.get("command") == MIDDSParser.COMMS_MSG_ERROR_HEAD:
-                    events.raiseError("MIDDS Error", newMsg.get("message", "(undefined)"))
-                    break
+                    if newMsg.get("command") == MIDDSParser.COMMS_MSG_ERROR_HEAD:
+                        events.raiseError("MIDDS Error", newMsg.get("message", "(undefined)"))
+                        break
+        except Exception as e:
+            ser = None
+            events.deviceConnected = False
+            events.raiseError("Error applying configuration", str(e))
+            print(traceback.format_exc())
 
     def sendSYNC(ser):
         if ser is None: return False

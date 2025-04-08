@@ -9,21 +9,22 @@ import ast
 class MIDDSChannel:
     MAX_POINTS:                     Final[int]   = dataclasses.field(default=1000   , metadata={"export": False})
     MAX_DELTA_POINTS:               Final[int]   = dataclasses.field(default=10000  , metadata={"export": False})
-    TIMEOUT_UNTIL_UNKNOWN_LEVEL_s:  Final[float] = dataclasses.field(default=5      , metadata={"export": False})
+    TIMEOUT_UNTIL_UNKNOWN_LEVEL_s:  Final[float] = dataclasses.field(default=5.0    , metadata={"export": False})
+    MIN_TIME_BETWEEN_PLOT_MEAS_s:   Final[float] = dataclasses.field(default=0.2    , metadata={"export": False})
 
     # Signal: T (TTL) or L (LVDS)
-    name:           str                 = dataclasses.field(default=""              , metadata={"export": True}) 
+    name:           str                 = dataclasses.field(default=""              , metadata={"export": True})
     number:         int                 = dataclasses.field(default=0               , metadata={"export": True})
     mode:           str                 = dataclasses.field(default="DS"            , metadata={"export": True})
     signal:         str                 = dataclasses.field(default="T"             , metadata={"export": True})
     modeSettings:   dict[str, any]      = dataclasses.field(default_factory = dict  , metadata={"export": True})
-    toRecord:       bool                = dataclasses.field(default=False           , metadata={"export": True})          
+    toRecord:       bool                = dataclasses.field(default=False           , metadata={"export": True})
     
     _channelLevel:          str         = dataclasses.field(default="?"             , metadata={"export": False})
-    lastLevelUpdate:        datetime    = dataclasses.field(default=datetime.now()  , metadata={"export": False})           
-    _frequency:             float       = dataclasses.field(default=-1.0            , metadata={"export": False})   
-    _dutyCycle:             float       = dataclasses.field(default=-1.0            , metadata={"export": False})   
-    lastFrequencyUpdate:    datetime    = dataclasses.field(default=datetime.now()  , metadata={"export": False})           
+    lastLevelUpdate:        datetime    = dataclasses.field(default=datetime.now()  , metadata={"export": False})
+    _frequency:             float       = dataclasses.field(default=-1.0            , metadata={"export": False})
+    _dutyCycle:             float       = dataclasses.field(default=-1.0            , metadata={"export": False})
+    lastFrequencyUpdate:    datetime    = dataclasses.field(default=datetime.now()  , metadata={"export": False})
 
     # For input channels...
     levels:         deque               = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_POINTS), metadata={"export": False})
@@ -74,6 +75,14 @@ class MIDDSChannel:
         # shown on the interface.
         self.lastFrequencyUpdate = datetime.now()
         
+        if len(self.freqsUpdates) > 1:
+            dt = time - self.freqsUpdates[-1]
+            # Give time between points to plot. If not given, high frequency signals will appear 
+            # "shorter" than low frequency signals. The latter will expand more on the horizontal,
+            # leaving the fast frequencies on a narrower space.
+            if dt.total_seconds() < MIDDSChannel.MIN_TIME_BETWEEN_PLOT_MEAS_s:
+                return
+
         self.freqs.append(self._frequency)
         self.dutyCycles.append(self._dutyCycle)
         self.freqsUpdates.append(time)
@@ -119,6 +128,11 @@ class MIDDSChannel:
                     self.channelLevel = "HIGH"
                 else:
                     self.channelLevel = "?"
+            elif msgCommand == MIDDSParser.COMMS_MSG_FREQ_HEAD:
+                freq = values.get("frequency", -1.0)
+                duty = values.get("dutyCycle", -1.0)
+                time = values.get("time", datetime.now())
+                self.setFrequencyAndDutyCycle(freq, duty, time)
         elif self.mode == "OU":
             if msgCommand == MIDDSParser.COMMS_MSG_INPUT_HEAD:
                 read = values.get("readValue", "?")

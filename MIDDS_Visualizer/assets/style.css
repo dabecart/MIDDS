@@ -45,6 +45,40 @@ hr {
     z-index: 1000;
 }
 
+.header-top-left-buttons {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+}
+
+.header-round-btn-image {
+    width: 20px;
+}
+
+.header-round-btn {
+    display: flex;
+    aspect-ratio: 1;
+    align-items: center;
+
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    width: fit-content;
+    margin: 0;
+    min-width: 0;
+    border-radius: 50%;
+
+    transition: all 0.1s ease-in-out;
+}
+
+.header-round-btn:hover {
+    background-color: #555;
+    box-shadow: 0 0 0 3px #555;
+}
+
 .title {
     font-size: 24px;
     font-weight: bold;
@@ -105,24 +139,6 @@ hr {
 
 .record-btn.recording:hover {
     background-color: #007000;
-}
-
-.sidebar-btn {
-    background: none;
-    border: none;
-    color: white;
-    cursor: pointer;
-    width: fit-content;
-    margin: 0;
-    min-width: 0;
-    border-radius: 50%;
-
-    transition: all 0.1s ease-in-out;
-}
-
-.sidebar-btn:hover {
-    background-color: #555;
-    box-shadow: 0 0 0 5px #555;
 }
 
 .section-title {
@@ -526,8 +542,9 @@ hr {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     justify-items: center;
+    align-items: center;
     
-    padding: 10px;
+    padding: 0 10px;
     background: #333;
     position: fixed;
     bottom: 0;
@@ -548,22 +565,6 @@ hr {
 .settings-btn {
     grid-column: 1;
     justify-self: start;
-
-    background: none;
-    border: none;
-    color: white;
-    cursor: pointer;
-    width: fit-content;
-    margin: 0;
-    min-width: 0;
-    border-radius: 5px;
-
-    transition: all 0.1s ease-in-out;
-}
-
-.settings-btn:hover {
-    background-color: #555;
-    box-shadow: 0 0 0 5px #555;
 }
 
 /* CONSTANT DEFINES */

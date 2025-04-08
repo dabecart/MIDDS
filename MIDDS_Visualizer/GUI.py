@@ -106,7 +106,18 @@ class GUI:
         self.app.layout = html.Div([
             # Header
             html.Header([
-                html.Button("☰", id="toggle-sidebar", className="sidebar-btn"),
+                html.Div([
+                    html.Button(
+                        html.Img(src="assets/icons/menu.svg", className="header-round-btn-image"),
+                    id="toggle-sidebar", className="header-round-btn"),
+                    # html.Button(
+                    #     html.Img(src="assets/icons/open.svg", className="header-round-btn-image"),
+                    # id="open-file", className="header-round-btn"),
+                    # html.Button(
+                    #     html.Img(src="assets/icons/save.svg", className="header-round-btn-image"),
+                    # id="save-file", className="header-round-btn")
+                ], className="header-top-left-buttons"),
+
                 html.H2("MIDDS Visualizer", className="title"),
 
                 html.Div([
@@ -252,7 +263,9 @@ class GUI:
 
             # Footer
             html.Footer([
-                html.Button("Settings", id="settings-btn", className="settings-btn"),
+                html.Button(
+                    html.Img(src="assets/icons/settings.svg", className="header-round-btn-image"),
+                id="settings-btn", className="header-round-btn settings-btn"),
                 html.P([
                     "Made by ",
                     html.A("@dabecart", href="https://www.instagram.com/dabecart", target="_blank")
@@ -278,7 +291,7 @@ class GUI:
                 return "sidebar hidden", "main-content"
             return "sidebar", "main-content sidebar-open"
 
-        # Callback for connecting/disconnecting from the device.
+        # Callback to toggle the recording of the device.
         @self.app.callback(
             Input("record-btn", "n_clicks"),
             prevent_initial_call=True,
@@ -313,12 +326,17 @@ class GUI:
         # Callback for connecting/disconnecting from the device.
         @self.app.callback(
             Input("connect-btn", "n_clicks"),
+            Input("serial-name", "n_submit"),
             State("serial-name", "value"),
             prevent_initial_call=True
         )
-        def toggleConnection(n_clicks, serialName):
+        def toggleConnection(n_clicks, n_submits, serialName):
             self.config['ProgramConfig']['SERIAL_PORT'] = serialName
             self.config.saveConfig()
+
+            if ctx.triggered_id == "serial-name" and self.events.deviceConnected:
+                # The enter key should only be used to connect, not to disconnect.
+                return
 
             if self.events.deviceConnected:
                 # The device is connected and by clicking, the user is requesting to disconnect.
@@ -584,9 +602,6 @@ class GUI:
 
                 return False
 
-            if not self.events.deviceConnected:
-                raise PreventUpdate
-            
             # Update the figures with the settings of the client side.
             self.frequencyFig   = go.Figure(freqGraph)
             self.dutyCycleFig   = go.Figure(dutyGraph)

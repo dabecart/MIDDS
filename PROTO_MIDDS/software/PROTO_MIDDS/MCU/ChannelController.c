@@ -224,10 +224,13 @@ void setShiftRegisterValues(ChannelController* chCtrl) {
         chCtrl->hspi, (uint8_t*) (&shiftRegisterDataOut), sizeof(uint32_t), 1000);
 
     // Make the SR output its inner content by toggling the ENABLE pin. 
-    HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_RESET); 
-    HAL_Delay(1);
+    HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_RESET);
+    // This behemoth is a 50ns delay. It gives some time to the shift register to "register" the 
+    // pulse. Nevertheless, if there are interrupts in the middle, this time will be longer, but 
+    // that's actually OK.
+    __NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
     HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_SET); 
-    HAL_Delay(1);
+    __NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
     HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_RESET); 
 }
 

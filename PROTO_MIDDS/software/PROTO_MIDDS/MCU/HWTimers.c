@@ -173,7 +173,8 @@ void getChannelFrequencyAndDutyCycle(HWTimerChannel* hwTimer,
                                      double* frequency, double* dutyCycle) {
     
     if(hwTimer->data.len < HW_TIMER_MIN_SAMPLES_NEEDED) {
-        if((HAL_GetTick() - hwTimer->lastFrequencyCalculationTick) > 30000) {
+        if((HAL_GetTick() - hwTimer->lastFrequencyCalculationTick) > 
+            HW_TIMER_TICKS_UNTIL_FREQ_RECALCULATE) {
             hwTimer->lastFrequency = -1.0;
             hwTimer->lastDutyCycle = -1.0;
         }
