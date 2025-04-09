@@ -33,5 +33,22 @@
     "makefile.makefilePath": "Debug\\makefile",
     "cSpell.words": [
         "MIDDS"
+    ],
+    "cSpell.languageSettings": [
+        {
+            "languageId": "python,cpp,c",
+            "includeRegExpList": [
+                "comments",
+                "strings",
+                "CStyleComment",
+                "string"
+            ]
+        },
+        {
+            "languageId": "jsonc", // (.json with comments) because most "commands" here are strings
+            "includeRegExpList": [
+                "CStyleComment",
+            ]
+        }
     ]
 }

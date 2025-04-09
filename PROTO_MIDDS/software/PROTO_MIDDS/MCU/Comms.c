@@ -510,7 +510,9 @@ uint8_t executeChannelSettingsCommand(const ChannelSettingsChannel* cmdInput) {
     }
 
     ch->mode = cmdInput->mode;
-    ch->data.timer.signalType = cmdInput->signal;
+    if(ch->type == CHANNEL_TIMER) {
+        ch->data.timer.signalType = cmdInput->signal;
+    }
 
     applyChannelConfiguration(ch);
     setShiftRegisterValues(&chCtrl);

@@ -8,7 +8,7 @@ from typing import Final
 
 class ProgramConfiguration:
     # Default fields
-    CHANNEL_COUNT:  Final[int]      = 14
+    CHANNEL_COUNT:  Final[int]      = 30
     UPDATE_TIME_s:  Final[float]    = 0.5
 
     def __init__(self, configRoute):
@@ -70,7 +70,7 @@ class ProgramConfiguration:
 
         # Read the channels' configuration.
         self.channels: list[MIDDSChannel] = []
-        for channelNumber in range(ProgramConfiguration.CHANNEL_COUNT):
+        for channelNumber in range(int(programConfig['CHANNEL_COUNT'])):
             channelConfigSectionName = f"Channel{channelNumber:02d}"
             if channelConfigSectionName in self.config:
                 self.channels.append(MIDDSChannel.castDictToDataclass(self.config[channelConfigSectionName]))

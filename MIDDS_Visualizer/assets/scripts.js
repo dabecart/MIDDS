@@ -20,6 +20,20 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 }
             }, 5000);
 
+            errorDiv.addEventListener('mouseover', function(evt) {
+                // If the mouse is over the error div, do not close it.
+                clearTimeout(closeErrorDivTimeout);
+            });
+
+            errorDiv.addEventListener('mouseout', function(evt) {
+                // If the mouse has exited the div, give some time to close it.
+                closeErrorDivTimeout = setTimeout(function() {
+                    if(!errorDiv.classList.contains('hidden')) {
+                        requestCloseOfErrorDiv = true;
+                    }
+                }, 5000);
+            });
+
             const closeErrorButton = errorDiv.querySelector('.close-error-div');
             if(!closeErrorButton) return;
 

@@ -735,6 +735,7 @@ class GUI:
                 return ""
             
             self.events.commandContent += MIDDSParser.encodeOutput(ch.number, 1, 0)
+            self.events.commandContent += MIDDSParser.encodeInput(ch.number, 0, 0)
             self.events.sendCommandToMIDDS.set()
 
         @self.app.callback(
@@ -754,6 +755,7 @@ class GUI:
                 return ""
             
             self.events.commandContent += MIDDSParser.encodeOutput(ch.number, 0, 0)
+            self.events.commandContent += MIDDSParser.encodeInput(ch.number, 0, 0)
             self.events.sendCommandToMIDDS.set()
 
         # Callback to update error messages.

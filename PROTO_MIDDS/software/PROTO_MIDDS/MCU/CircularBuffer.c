@@ -31,7 +31,7 @@ void empty_cb(CircularBuffer* pCB) {
 }
 
 uint8_t push_cb(CircularBuffer* pCB, uint8_t ucItem) {
-    if((pCB->len+1) > pCB->size) return 0;
+    if(pCB->len >= pCB->size) return 0;
 
     pCB->data[pCB->head] = ucItem;
     pCB->head = (pCB->head + 1) % pCB->size;

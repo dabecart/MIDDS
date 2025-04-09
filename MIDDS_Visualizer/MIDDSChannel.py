@@ -112,6 +112,7 @@ class MIDDSChannel:
             if self.modeSettings.get("INRequestFrequency", False):
                 msg += MIDDSParser.encodeFrequency(self.number, 0)
         elif self.mode == "OU":
+            if self.modeSettings.get("OUAutoRequestLevel", False):
                 msg += MIDDSParser.encodeInput(self.number, 0, 0)
         return msg
 
@@ -294,6 +295,10 @@ class MIDDSChannelOptions:
         "INRequestFrequency"    : ("Request frequency",         True),
         "INPlotFreqInGraph"     : ("Add to frequency graph",    False),
         "INPlotDutyCycleInGraph": ("Add to duty cycle graph",   False),
+    }
+
+    OUOptions = {
+        "OUAutoRequestLevel"    : ("Request level periodically",True),
     }
 
     MROptions = {
