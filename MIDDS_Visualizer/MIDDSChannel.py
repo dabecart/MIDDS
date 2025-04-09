@@ -175,24 +175,24 @@ class MIDDSChannel:
             
             if (self.lastSampleForDelta & 0x01) == 1:
                 # Last sample was rising. 
-                self._risingDelta = self.deltas[-2] + self.deltas[-1]
-                self._fallingDelta = self.deltas[-2] + self.deltas[-3]
+                self._risingDelta = self.deltas[-2][0] + self.deltas[-1][0]
+                self._fallingDelta = self.deltas[-2][0] + self.deltas[-3][0]
             else:
                 # Last sample was falling. 
-                self._fallingDelta = self.deltas[-2] + self.deltas[-1]
-                self._risingDelta = self.deltas[-2] + self.deltas[-3]
+                self._fallingDelta = self.deltas[-2][0] + self.deltas[-1][0]
+                self._risingDelta = self.deltas[-2][0] + self.deltas[-3][0]
         elif self.mode == "MR":
-            self._risingDelta = self.deltas[-1]
+            self._risingDelta = self.deltas[-1][0]
             self._fallingDelta = -1.0
         elif self.mode == "MF":
             self._risingDelta = -1.0
-            self._fallingDelta = self.deltas[-1]
+            self._fallingDelta = self.deltas[-1][0]
         else:
             self._risingDelta = -1.0
             self._fallingDelta = -1.0
 
     def calculateChannelFrequencyFromTimestamps(self):
-        if len(self.samples) < 3: return
+        if len(self.samples) < 5: return
 
         sampleList: tuple[int] = tuple(self.samples)
         
