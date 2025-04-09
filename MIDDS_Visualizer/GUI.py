@@ -22,6 +22,7 @@ class GUI:
         self.changesToApply: bool = False
         self.suppressChannelOptionsUpdate = False
         self.plotPeriodInsteadOfFreq = False
+        self.timeDeltasPlotConfig = "H" # H, L or HL
 
         self.selectedChannelNumber:   int = 0
 
@@ -202,17 +203,27 @@ class GUI:
                                        id="switch-frequencies-label", className="section-title"),
                             html.Button("Switch to frequencies" if self.plotPeriodInsteadOfFreq else "Switch to periods",
                                          id="switch-frequencies-btn", className="switch-frequencies-btn"),
-                        ], className="freq-label-div"),
+                        ], className="section-label-div"),
                         dcc.Graph(id='freq-graph', className='graph', figure=self.frequencyFig)
                     ], className="freq-section"),
 
                     html.Section([
-                        html.Label("Duty Cycles", className="section-title"),
+                        html.Div([
+                            html.Label("Duty Cycles", className="section-title"),
+                        ], className="section-label-div"),
                         dcc.Graph(id='duty-graph', className='graph', figure=self.dutyCycleFig)
                     ], className="duty-section"),
 
                     html.Section([
-                        html.Label("Time deltas", className="section-title"),
+                        html.Div([
+                            html.Label("Time deltas", className="section-title"),
+                            html.Div([
+                                    html.Button("High", id="deltas-plot-h", className="deltas-plot-options-btn"),
+                                    html.Button("Low", id="deltas-plot-l", className="deltas-plot-options-btn"),
+                                    html.Button("H+L", id="deltas-plot-hl", className="deltas-plot-options-btn"),
+                            ], className="deltas-plot-options"),
+                        ], className="section-label-div"),
+                        
                         dcc.Graph(id='deltas-graph', className='graph', figure=self.deltaFig)
                     ], className="deltas-section"),
                 ], className="plots-row"),
@@ -706,10 +717,18 @@ class GUI:
                                     plotInGraph   = plotInDutyGraph):
                     retDutyGraph = self.dutyCycleFig
 
+                if self.timeDeltasPlotConfig == "H":
+                    deltasToPlot = tuple(t for t, edge in ch.deltas if edge)
+                elif self.timeDeltasPlotConfig == "L":
+                    deltasToPlot = tuple(t for t, edge in ch.deltas if not edge)
+                elif self.timeDeltasPlotConfig == "HL":
+                    deltasToPlot = tuple(t for t, _ in ch.deltas)
+                else:
+                    deltasToPlot = ()
                 plotInDeltasGraph = ch.modeSettings.get(ch.mode + "PlotDeltasInGraph", False)
                 if updateDataInPlot(ch            = ch,
                                     figure        = self.deltaFig, 
-                                    xPoints       = tuple(ch.deltas), 
+                                    xPoints       = deltasToPlot, 
                                     yPoints       = None, 
                                     plotInGraph   = plotInDeltasGraph):
                     retDeltaGraph = self.deltaFig
@@ -925,6 +944,33 @@ class GUI:
         def updateInterfaceFromClient(clientServerStore):
             loadedStore = json.loads(clientServerStore)
             return loadedStore['error-message-div']
+
+        @self.app.callback(
+            Output("deltas-plot-h", "className"),
+            Output("deltas-plot-l", "className"),
+            Output("deltas-plot-hl", "className"),
+
+            Input("deltas-plot-h", "n_clicks"),
+            Input("deltas-plot-l", "n_clicks"),
+            Input("deltas-plot-hl", "n_clicks"),
+        )
+        def updateDeltasPlotButtons(c1,c2,c3):
+            triggered = ctx.triggered_id
+            retH = "deltas-plot-options-btn"
+            retL = "deltas-plot-options-btn"
+            retHL = "deltas-plot-options-btn"
+            
+            if not triggered or triggered == "deltas-plot-h":
+                retH += " active"
+                self.timeDeltasPlotConfig = "H"
+            elif triggered == "deltas-plot-l":
+                retL += " active"
+                self.timeDeltasPlotConfig = "L"
+            elif triggered == "deltas-plot-hl":
+                retHL += " active"
+                self.timeDeltasPlotConfig = "HL"
+            return retH, retL, retHL
+
 
     def setupClientCallbacks(self):
         self.app.clientside_callback(

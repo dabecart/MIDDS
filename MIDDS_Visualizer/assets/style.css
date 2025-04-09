@@ -144,7 +144,6 @@ hr {
 .section-title {
     font-weight: bold;
     font-size: 1.2em;
-    margin-bottom: 5px;
 }
 
 /* Sidebar */
@@ -312,17 +311,13 @@ hr {
     width: 100%;
 }
 
-.freq-label-div {
+.section-label-div {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 5px;
-}
-
-/* Ugly fix */
-.freq-label-div .section-title {
-    margin-bottom: 0;
+    height: 1.5em;
 }
 
 .switch-frequencies-btn {
@@ -330,13 +325,16 @@ hr {
     border: none;
     cursor: pointer;
     width: 150px;
-    margin-right: 5px;
     font-size: smaller;
 
     transition-duration: 0.3s;
     background-color: #ccc;
-    padding: 5px 0;
+    padding: 4px 0;
     border-radius: 5px;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .switch-frequencies-btn:hover {
@@ -349,6 +347,51 @@ hr {
     border: solid 1px #444;
     padding-left: 5px;
 }
+
+/* DELTAS BUTTONS */
+
+.deltas-plot-options {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+}
+
+.deltas-plot-options-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 50px;
+    margin-right: 5px;
+    font-size: smaller;
+
+    transition-duration: 0.3s;
+    background-color: #ccc;
+    padding: 4px 0;
+    border-radius: 5px;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.deltas-plot-options-btn:hover {
+    background-color: #aaa;
+    box-shadow: 0 0 0 1px #aaa;
+}
+
+.deltas-plot-options-btn.active {
+    background-color: #6495ed;
+    border: 2px solid #3b78e9;
+}
+
+.deltas-plot-options-btn.active:hover {
+    background-color: #4f75bd;
+    box-shadow: 0 0 0 1px #4f75bd;
+}
+
+/* SECTIONS */
 
 .input-channels, .output-channels, .monitor-channels {
     flex: 1;
@@ -590,3 +633,4 @@ hr {
         opacity: 0;
     }
 }
+

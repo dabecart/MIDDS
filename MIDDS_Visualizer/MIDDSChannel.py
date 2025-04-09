@@ -34,10 +34,11 @@ class MIDDSChannel:
 
     # For monitoring channels...
     samples:                deque       = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_POINTS), metadata={"export": False})
+    # deltas is a deque of tuples: (deltaTime: float, isHighEdge: bool)
     deltas:                 deque       = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_DELTA_POINTS), metadata={"export": False})
     lastSampleForDelta:     int         = dataclasses.field(default = -1, metadata={"export": False})
-    _risingDelta:            float       = dataclasses.field(default = -1.0, metadata={"export": False})
-    _fallingDelta:           float       = dataclasses.field(default = -1.0, metadata={"export": False})
+    _risingDelta:           float       = dataclasses.field(default = -1.0, metadata={"export": False})
+    _fallingDelta:          float       = dataclasses.field(default = -1.0, metadata={"export": False})
 
     @property
     def channelLevel(self) -> str:
@@ -166,7 +167,7 @@ class MIDDSChannel:
 
         for s0, s1 in zip(currentSamples[:-1], currentSamples[1:]):
             delta: float = ((s1 >> 1) - (s0 >> 1)) / 1e9
-            self.deltas.append(delta)
+            self.deltas.append((delta, (s1 & 0x01) == 1))
 
         if self.mode == "MB":
             if len(self.deltas) < 3:
