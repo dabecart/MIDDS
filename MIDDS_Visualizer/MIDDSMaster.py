@@ -178,9 +178,9 @@ class MIDDSMaster:
 
                 self.handleApplySettingsEvent()
 
-                self.handleApplyChannelsConfigurationEvent()
-
                 self.handleStopRecordingEvent()
+
+                self.handleStartRecordingEvent()
 
                 self.handleSendCommandToMIDDSEvent()
 
