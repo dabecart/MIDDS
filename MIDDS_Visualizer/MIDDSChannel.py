@@ -34,7 +34,9 @@ class MIDDSChannel:
 
     # For monitoring channels...
     samples:                deque       = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_POINTS), metadata={"export": False})
-    # deltas is a deque of tuples: (deltaTime: float, isHighEdge: bool)
+    # deltas is a deque of tuples: (deltaTime: float, isHighEdge: bool) 
+    # Whilst monitoring both edges, if isHighEdge then deltaTime is measured from a low period on the wave. 
+    # If monitoring only high or only low, then deltaTime is always the period of the wave.
     deltas:                 deque       = dataclasses.field(default_factory = lambda: deque(maxlen = MIDDSChannel.MAX_DELTA_POINTS), metadata={"export": False})
     lastSampleForDelta:     int         = dataclasses.field(default = -1, metadata={"export": False})
     _risingDelta:           float       = dataclasses.field(default = -1.0, metadata={"export": False})
@@ -97,10 +99,18 @@ class MIDDSChannel:
         else:
             return "Invalid signal"
 
+    """
+    If working as a Monitor Rising Edges, this value is the period of the wave.
+    If working as Monitor Both Edges, this value is the time length of the low section of the wave.
+    """
     @property
     def risingDelta(self) -> str:
         return f'{self._risingDelta*1e9 : .1f} ns'
 
+    """
+    If working as a Monitor Falling Edges, this value is the period of the wave.
+    If working as Monitor Both Edges, this value is the time length of the high section of the wave.
+    """
     @property
     def fallingDelta(self) -> str:
         return f'{self._fallingDelta*1e9 : .1f} ns'
@@ -167,20 +177,20 @@ class MIDDSChannel:
 
         for s0, s1 in zip(currentSamples[:-1], currentSamples[1:]):
             delta: float = ((s1 >> 1) - (s0 >> 1)) / 1e9
-            self.deltas.append((delta, (s1 & 0x01) == 1))
+            self.deltas.append((delta, (s1 & 0x01) == 1)) 
 
         if self.mode == "MB":
-            if len(self.deltas) < 3:
+            if len(self.deltas) < 2:
                 return
             
             if (self.lastSampleForDelta & 0x01) == 1:
                 # Last sample was rising. 
-                self._risingDelta = self.deltas[-2][0] + self.deltas[-1][0]
-                self._fallingDelta = self.deltas[-2][0] + self.deltas[-3][0]
+                self._risingDelta = self.deltas[-2][0]
+                self._fallingDelta = self.deltas[-1][0]
             else:
                 # Last sample was falling. 
-                self._fallingDelta = self.deltas[-2][0] + self.deltas[-1][0]
-                self._risingDelta = self.deltas[-2][0] + self.deltas[-3][0]
+                self._fallingDelta = self.deltas[-2][0]
+                self._risingDelta = self.deltas[-1][0]
         elif self.mode == "MR":
             self._risingDelta = self.deltas[-1][0]
             self._fallingDelta = -1.0

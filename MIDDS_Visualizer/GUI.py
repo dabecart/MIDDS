@@ -110,7 +110,8 @@ class GUI:
                 html.Div([
                     html.Button(
                         html.Img(src="assets/icons/menu.svg", className="header-round-btn-image"),
-                    id="toggle-sidebar", className="header-round-btn"),
+                    id="toggle-sidebar", className="header-round-btn",
+                    title="Toggle sidebar"),
                     # html.Button(
                     #     html.Img(src="assets/icons/open.svg", className="header-round-btn-image"),
                     # id="open-file", className="header-round-btn"),
@@ -119,13 +120,16 @@ class GUI:
                     # id="save-file", className="header-round-btn")
                 ], className="header-top-left-buttons"),
 
-                html.H2("MIDDS Visualizer", className="title"),
+                html.H2("MIDDS Visualizer", className="title",
+                        title="A dashboard for MIDDS!"),
 
                 html.Div([
                     dcc.Input(id="serial-name", className="inputPane", type="text", placeholder="Serial port", 
                             value=self.config['ProgramConfig']['SERIAL_PORT']),
-                    html.Button("Connect", id="connect-btn", className="connect-btn"),
-                    html.Button("⏺ Record", id="record-btn", className="record-btn")
+                    html.Button("Connect", id="connect-btn", className="connect-btn",
+                                title="Connect or disconnect to MIDDS."),
+                    html.Button("⏺ Record", id="record-btn", className="record-btn",
+                                title="Start or stop the recording of MIDDS outputs.")
                 ], className="header-right-div")
             ], className="header"),
             
@@ -156,9 +160,9 @@ class GUI:
                             {"label": "Disabled",               "value": "DS"},
                             {"label": "Input",                  "value": "IN"}, 
                             {"label": "Output",                 "value": "OU"},
-                            {"label": "Monitor Rising edges",   "value": "MR"},
-                            {"label": "Monitor falling edges",  "value": "MF"},
-                            {"label": "Monitor both edges",     "value": "MB"},
+                            {"label": "Monitor Rising Edges",   "value": "MR"},
+                            {"label": "Monitor Falling Edges",  "value": "MF"},
+                            {"label": "Monitor Both Edges",     "value": "MB"},
                         ], 
                         value=self.config.getChannel(self.selectedChannelNumber).mode,
                         clearable=False
@@ -168,27 +172,30 @@ class GUI:
                     dcc.RadioItems(
                         id="gpio-signal", className="gpio-signal",
                         options = [
-                            {"label": "TTL",    "value": "T"},
-                            {"label": "LVDS",    "value": "L"},
+                            {"label": "TTL",    "value": "T", "disabled": self.config.getChannel(self.selectedChannelNumber).mode=="DS"},
+                            {"label": "LVDS",   "value": "L", "disabled": self.config.getChannel(self.selectedChannelNumber).mode=="DS"},
                         ],
-                        value=self.config.getChannel(self.selectedChannelNumber).signal
+                        value=self.config.getChannel(self.selectedChannelNumber).signal,
                     ),
 
-                    html.Label("Channel options:", className="sidebar-label"),
                     html.Div(id="gpio-options"),
 
                     html.Hr(),
 
                     html.Label("Channel functions:", className="sidebar-label"),
-                    html.Button("Clear channel's data", id="clear-data-btn", className="clear-data-btn"),
-                    html.Button("Clear all channels' data", id="clear-all-data-btn", className="clear-data-btn"),
+                    html.Button("Clear channel's data", id="clear-data-btn", className="clear-data-btn",
+                                title="Clear this channel's data points."),
+                    html.Button("Clear all channels' data", id="clear-all-data-btn", className="clear-data-btn",
+                                title="Clear all the channels' data points."),
                 ], className="sidebar-content"),
 
                 html.Div([
-                    html.P("You've made changes to the channel's configuration."),
+                    html.P("You've made changes to the channels' configuration."),
                     html.Div([
-                        html.Button("Discard", id="discard-config-btn", className="config-btn"),
-                        html.Button("Apply", id="apply-config-btn", className="config-btn"),
+                        html.Button("Discard", id="discard-config-btn", className="config-btn",
+                                    title="Apply all changes done to MIDDS' configuration."),
+                        html.Button("Apply", id="apply-config-btn", className="config-btn",
+                                    title="Discard all changes done to MIDDS' configuration."),
                     ], className="apply-config-button-div")
                 ], id="apply-config", className="apply-config hidden")
             ], id="sidebar", className="sidebar"),
@@ -202,7 +209,8 @@ class GUI:
                             html.Label("Periods" if self.plotPeriodInsteadOfFreq else "Frequencies",
                                        id="switch-frequencies-label", className="section-title"),
                             html.Button("Switch to frequencies" if self.plotPeriodInsteadOfFreq else "Switch to periods",
-                                         id="switch-frequencies-btn", className="switch-frequencies-btn"),
+                                         id="switch-frequencies-btn", className="switch-frequencies-btn",
+                                         title="Select to either plot the frequency (Hz) or the period (s)."),
                         ], className="section-label-div"),
                         dcc.Graph(id='freq-graph', className='graph', figure=self.frequencyFig)
                     ], className="freq-section"),
@@ -218,9 +226,12 @@ class GUI:
                         html.Div([
                             html.Label("Time deltas", className="section-title"),
                             html.Div([
-                                    html.Button("High", id="deltas-plot-h", className="deltas-plot-options-btn"),
-                                    html.Button("Low", id="deltas-plot-l", className="deltas-plot-options-btn"),
-                                    html.Button("H+L", id="deltas-plot-hl", className="deltas-plot-options-btn"),
+                                    html.Button("High", id="deltas-plot-h", className="deltas-plot-options-btn",
+                                                title="Only plot the deltas of the high pulses."),
+                                    html.Button("Low", id="deltas-plot-l", className="deltas-plot-options-btn",
+                                                title="Only plot the deltas of the low pulses."),
+                                    html.Button("H+L", id="deltas-plot-hl", className="deltas-plot-options-btn",
+                                                title="Plot both high and low pulses' deltas."),
                             ], className="deltas-plot-options"),
                         ], className="section-label-div"),
                         
@@ -256,7 +267,8 @@ class GUI:
             
             # Error Notification
             html.Div([
-                html.Button("✖", className="close-error-div"),
+                html.Button("✖", className="close-error-div", 
+                            title="Close this message."),
                 html.P(id="error-title",    className="error-title"),
                 html.P(id="error-date",     className="error-date"),
                 html.P(id="error-content",  className="error-content")
@@ -265,17 +277,21 @@ class GUI:
             # Settings pane
             html.Div([
                 html.P("Settings", id="settings-title", className="settings-title"),
-                html.Div(className="settings-div-content", id="settings-div-content"),
+                html.Div(className="settings-div-content", id="settings-div-content",
+                         title="Close the settings pane."),
                 html.Div([
-                    html.Button("Discard settings", className="config-btn", id="discard-settings-btn"),
-                    html.Button("Apply settings", className="config-btn", id="apply-settings-btn"),
+                    html.Button("Discard settings", className="config-btn", id="discard-settings-btn",
+                                title="Do not apply the changes to the settings."),
+                    html.Button("Apply settings", className="config-btn", id="apply-settings-btn",
+                                title="Apply the changes to the settings."),
                 ], className="apply-settings-div"),
             ], id="settings-div", className="settings-div initialHidden"),
 
             # Footer
             html.Footer([
                 html.Button(
-                    html.Img(src="assets/icons/settings.svg", className="header-round-btn-image"),
+                    html.Img(src="assets/icons/settings.svg", className="header-round-btn-image",
+                             title="Open or close the settings pane."),
                 id="settings-btn", className="header-round-btn settings-btn"),
                 html.P([
                     "Made by ",
@@ -379,6 +395,7 @@ class GUI:
             Output("gpio-name", "value"),
             Output("gpio-mode", "value"),
             Output("gpio-signal", "value"),
+            Output("gpio-signal", "options"),
             Output("apply-config", "className", allow_duplicate=True),
 
             Input("gpio-channel", "value"),
@@ -422,8 +439,13 @@ class GUI:
                 returnMode = selChannel.mode
                 returnSignal = selChannel.signal
 
-            # apply-config without the hidden.
-            return returnName, returnMode, returnSignal, applyConfigClassName
+            # Disable signal type if the channel is set as disabled.
+            signalOptions = [
+                {"label": "TTL",    "value": "T", "disabled": mode=="DS"},
+                {"label": "LVDS",   "value": "L", "disabled": mode=="DS"},
+            ]
+
+            return returnName, returnMode, returnSignal, signalOptions, applyConfigClassName
 
         @self.app.callback(
             Input("clear-data-btn", "n_clicks"),
@@ -447,18 +469,22 @@ class GUI:
             prevent_initial_call=True,
         )
         def applyNewConfiguration(n_clicks):
-            if not self.events.deviceConnected:
-                self.events.raiseError("Cannot apply configuration",
-                                     "Connect to MIDDS first by entering the serial port and clicking the 'Connect' button.")
-                raise PreventUpdate
-
             self.channelsLock.acquire()
             
             self.config.copyFrom(self.temporalConfig)
 
             self.config.saveConfig()
-            self.events.applyChannelsConfiguration.set()
+
             self.channelsLock.release()
+            
+            if self.events.deviceConnected:
+                self.events.applySettings.set()
+                self.events.applyChannelsConfiguration.set()
+            else:
+                self.events.raiseMessage("Channel configuration stored",
+                                         "The channels' configuration has been stored but not applied. "
+                                         "Connect to MIDDS by entering the serial port and click the 'Connect' button to apply it.")
+
             return "apply-config hidden"
 
         # Callback for not applying the new configuration.
@@ -483,6 +509,7 @@ class GUI:
             optionsList = MIDDSChannelOptions.getGUIOptionsForMode(mode)
             if len(optionsList) > 0:
                 return html.Div([
+                    html.Label("Channel options:", className="sidebar-label"),
                     dcc.Checklist(id="gpio-options-list", 
                                   options=optionsList,
                                   value=self.temporalConfig.getChannel(self.selectedChannelNumber).getChannelOptionsForChecklist(),
@@ -680,15 +707,18 @@ class GUI:
                             html.P(f"Duty cycle: {ch.dutyCycle} %"),
                         ])
 
-                    if ch.mode in ["MR", "MB"]:
+                    if ch.mode == "MR":
                         monitorContent.append(
-                            html.P(f"Rising Δ:  {ch.risingDelta}"),
+                            html.P(f"Period:  {ch.risingDelta}"),
                         )
-
-                    if ch.mode in ["MF", "MB"]:
+                    elif ch.mode == "MF":
                         monitorContent.append(
-                            html.P(f"Falling Δ: {ch.fallingDelta}"),
+                            html.P(f"Period: {ch.fallingDelta}"),
                         )
+                    elif ch.mode == "MB":
+                        # See fallingDelta and risingDelta to understand why the P labels are mixed.
+                        monitorContent.append(html.P(f"High Δ: {ch.fallingDelta}"))
+                        monitorContent.append(html.P(f"Low Δ: {ch.risingDelta}"))
 
                     monitorWidgets.append(
                         html.Div(monitorContent, className="gpio-widget input-gpio-widget")
@@ -883,11 +913,6 @@ class GUI:
             suppress_callback_exceptions=True
         )
         def applySettings(c1: int, syncCh: str, syncFreq: float|int, syncDuty: float|int):
-            if not self.events.deviceConnected:
-                self.events.raiseError("Cannot apply settings",
-                                       "Connect to MIDDS first by entering the serial port and clicking the 'Connect' button.")
-                raise PreventUpdate
-
             if syncCh != -1:
                 selCh = self.config.getChannel(syncCh)
                 if selCh is None:
@@ -917,7 +942,12 @@ class GUI:
             self.config['SYNC']['DutyCycle'] = str(syncDuty)
             self.config.saveConfig()
 
-            self.events.applySettings.set()
+            if self.events.deviceConnected:
+                self.events.applySettings.set()
+            else:
+                self.events.raiseMessage("Settings stored",
+                                         "Settings have been stored but not applied. "
+                                         "Connect to MIDDS by entering the serial port and click the 'Connect' button to apply them.")
 
             # Close the settings window.
             return "settings-div hidden"

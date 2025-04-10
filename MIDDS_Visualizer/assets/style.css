@@ -504,8 +504,8 @@ hr {
 }
 
 .close-error-div:hover {
-    background-color: #c00;
-    box-shadow: 0 0 0 1px #c00;
+    background-color: #0004;
+    box-shadow: 0 0 0 1px #0004;
 }
 
 .dash-default-spinner > div {
