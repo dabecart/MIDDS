@@ -451,11 +451,22 @@ hr {
 
 .timeline-div, .field-plot-div {
     flex: 1;
-    transition: all 0.3s;
+    transition: all 0.5s;
 }
 
 .timeline-div.hidden, .field-plot-div.hidden {
     flex: 0;
+}
+
+.timeline-div > :nth-child(2), .field-plot-div > :nth-child(2) {
+    transition: all 0.5s;
+    opacity: 1;
+}
+
+.timeline-div.hidden > :nth-child(2), .field-plot-div.hidden > :nth-child(2) {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .section-accordion-toggler .header-round-btn-image,
@@ -484,9 +495,9 @@ hr {
     color: #333;
 }
 
-.field-plot-section {
-    width: 100%;
-    height: 100%;
+.field-plot-graph {
+    width: auto;
+    height: auto;
 }
 
 /* Error Message */

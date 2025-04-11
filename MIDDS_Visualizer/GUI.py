@@ -3,6 +3,8 @@ from dash import dcc, html, no_update, ClientsideFunction, ctx, ALL
 from dash.exceptions import PreventUpdate
 from dash.dependencies import Input, Output, State
 import plotly.graph_objs as go
+# Make data plots automatically select the number of points depending on the zoom.
+from plotly_resampler import FigureResampler, FigureWidgetResampler
 
 import tkinter as tk
 from tkinter import filedialog
@@ -21,6 +23,7 @@ class GUI:
         self.channelsLock = lock
         self.events = events
         self.config: ProgramConfiguration = config
+        self.analyzerMIDDS: MIDDSAnalyzer|None = None
 
         self.temporalConfig: ProgramConfiguration = copy.deepcopy(config)
         self.changesToApply: bool = False
@@ -98,6 +101,23 @@ class GUI:
             ),
             yaxis=dict(
                 title = 'Frequency',
+                autorange = True
+            ),
+            
+            template='plotly_dark',
+            margin=dict(l=10, r=10, t=5, b=20),
+            showlegend=True,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+        )
+
+        self.analFieldPlot = FigureResampler(go.Figure())
+        self.analFieldPlot.update_layout(
+            xaxis=dict(
+                autorange = True
+            ),
+            yaxis=dict(
+                title = 'Period (ns)',
                 autorange = True
             ),
             
@@ -305,18 +325,22 @@ class GUI:
                         dcc.Dropdown(
                             id="field-plot-dropdown", 
                             options=[
+                                {"label": "Periods",                "value": "periods"},
                                 {"label": "Frequencies",            "value": "frequency"},
                                 {"label": "Duty cycles",            "value": "dutyCycle"}, 
-                                {"label": "Rising deltas",          "value": "riseDelta"},
-                                {"label": "Falling deltas",         "value": "fallDelta"},
+                                {"label": "High deltas",            "value": "highDelta"},
+                                {"label": "Low deltas",             "value": "lowDelta"},
                             ], 
                             value="frequency",
-                            clearable=False
+                            clearable=False,
+                            disabled=True
                         ),
                     ], className="anal-title-div"),
-                    html.Section(id="field-plot-section", className="field-plot-section"),
-                ], id="field-plot-div", className="field-plot-div"),
 
+                    html.Div(
+                        dcc.Graph(id='field-plot-graph', className='field-plot-graph', figure=self.analFieldPlot)
+                    )
+                ], id="field-plot-div", className="field-plot-div"),
             ], id="analyzer-content", className="main-content sidebar-open initialHidden"),
             
             # Error Notification
@@ -735,66 +759,10 @@ class GUI:
             State('duty-graph', 'figure'),
             State('deltas-graph', 'figure')
         )
-        def updateWidgets(n, freqGraph, dutyGraph, deltasGraph):
-            def updateDataInPlot(ch: MIDDSChannel, figure: go.Figure, xPoints: tuple, yPoints: tuple|None, plotInGraph: bool) -> bool:
-                figureColors: tuple[str] = ('#FF6969', 
-                                            '#FFB860', 
-                                            '#FAFF71', 
-                                            '#8DFF76', 
-                                            '#58F1FF', 
-                                            '#5C9AFF', 
-                                            '#836DFF', 
-                                            '#FF7EFF', 
-                                            '#FFFFA9')
-
-                channelNameInGraph = f'Ch. {ch.number:02}'
-                # list of traces with the name "channelNameInGraph".
-                foundMatches = list(figure.select_traces(selector=dict(name=channelNameInGraph)))
-
-                if plotInGraph:
-                    if len(xPoints) <= 0: return False
-
-                    if len(foundMatches) > 0:
-                        # If the trace is on the graph, update it.
-                        foundMatches[0]['x'] = xPoints
-                        if yPoints is not None:
-                            foundMatches[0]['y'] = yPoints
-                        
-                    else:
-                        # If the trace is not on the graph, add it.
-                        if yPoints is None:
-                            # Add a histogram graph.
-                            figure.add_trace(go.Histogram(
-                                x=xPoints,
-                                nbinsx=50,
-                                marker=dict(color=figureColors[len(figure.data) % len(figureColors)]),
-                                opacity=0.7,
-                                name=channelNameInGraph
-                            ))
-                        else:
-                            # Add an Scatter graph.
-                            figure.add_trace(go.Scatter(
-                                x=xPoints,
-                                y=yPoints,
-                                mode='markers+lines',
-                                marker=dict(size=4,
-                                            color=figureColors[len(figure.data) % len(figureColors)], 
-                                            opacity=0.7),
-                                name=channelNameInGraph
-                            ))
-                    return True
-                
-                elif len(foundMatches) > 0:
-                    # Remove the trace from the graph if it's not set to plot.
-                    for i, trace in enumerate(figure['data']):
-                        if 'name' in trace and trace['name'] == channelNameInGraph:
-                            # self.fig['data] returns a tuple. Remove the trace from it.
-                            dataList = list(figure['data'])
-                            del dataList[i]
-                            figure['data'] = tuple(dataList)
-                            return True
-
-                return False
+        def updateMainPlots(n, freqGraph, dutyGraph, deltasGraph):
+            if self.currentScreen != "main":
+                # No need to update the plots when they're not being shown.
+                raise PreventUpdate
 
             # Update the figures with the settings of the client side.
             self.frequencyFig   = go.Figure(freqGraph)
@@ -886,21 +854,21 @@ class GUI:
                         title = 'Period (s)' if self.plotPeriodInsteadOfFreq else "Frequency (Hz)",
                     ),
                 )
-                if updateDataInPlot(ch            = ch,
-                                    figure        = self.frequencyFig, 
-                                    xPoints       = tuple(ch.freqsUpdates), 
-                                    yPoints       = tuple(1.0/f if self.plotPeriodInsteadOfFreq else f for f in ch.freqs), 
-                                    plotInGraph   = plotInFreqGraph):
+                if self.updateDataInPlot(ch            = ch,
+                                         figure        = self.frequencyFig, 
+                                         xPoints       = tuple(ch.freqsUpdates), 
+                                         yPoints       = tuple(1.0/f if self.plotPeriodInsteadOfFreq else f for f in ch.freqs), 
+                                         plotInGraph   = plotInFreqGraph):
                     retFreqGraph = self.frequencyFig
 
                 plotInDutyGraph = ch.modeSettings.get(ch.mode + "PlotDutyCycleInGraph", False)
                 if plotInDutyGraph:
                     pass
-                if updateDataInPlot(ch            = ch,
-                                    figure        = self.dutyCycleFig, 
-                                    xPoints       = tuple(ch.freqsUpdates), 
-                                    yPoints       = tuple(ch.dutyCycles), 
-                                    plotInGraph   = plotInDutyGraph):
+                if self.updateDataInPlot(ch            = ch,
+                                         figure        = self.dutyCycleFig, 
+                                         xPoints       = tuple(ch.freqsUpdates), 
+                                         yPoints       = tuple(ch.dutyCycles), 
+                                         plotInGraph   = plotInDutyGraph):
                     retDutyGraph = self.dutyCycleFig
 
                 if self.timeDeltasPlotConfig == "H":
@@ -912,11 +880,11 @@ class GUI:
                 else:
                     deltasToPlot = ()
                 plotInDeltasGraph = ch.modeSettings.get(ch.mode + "PlotDeltasInGraph", False)
-                if updateDataInPlot(ch            = ch,
-                                    figure        = self.deltaFig, 
-                                    xPoints       = deltasToPlot, 
-                                    yPoints       = None, 
-                                    plotInGraph   = plotInDeltasGraph):
+                if self.updateDataInPlot(ch            = ch,
+                                         figure        = self.deltaFig, 
+                                         xPoints       = deltasToPlot, 
+                                         yPoints       = None, 
+                                         plotInGraph   = plotInDeltasGraph):
                     retDeltaGraph = self.deltaFig
 
             self.channelsLock.release()
@@ -1164,7 +1132,7 @@ class GUI:
 
             Input('toggle-messaging-timeline', 'n_clicks'),
             State('timeline-div', 'className'),
-            prevent_inital_call=True
+            prevent_initial_call=True
         )
         def toggleMessagingTimelineDiv(n_click: int, divClassName: str):
             if n_click is None:
@@ -1180,7 +1148,7 @@ class GUI:
 
             Input('toggle-field-plot', 'n_clicks'),
             State('field-plot-div', 'className'),
-            prevent_inital_call=True
+            prevent_initial_call=True
         )
         def toggleFieldPlotDiv(n_click: int, divClassName: str):
             if n_click is None:
@@ -1192,17 +1160,83 @@ class GUI:
                 return divClassName + " hidden"
 
         @self.app.callback(
+            Output('field-plot-graph', 'figure', allow_duplicate=True),
+            Output('field-plot-dropdown', 'disabled'),
+
             Input('open-file', 'n_clicks'),
-            prevent_inital_call=True
+            State('field-plot-dropdown', 'value'),
+            prevent_initial_call=True
         )
-        def loadFileRoute(n_click: int):
+        def loadFileRoute(n_click: int, fieldToPlot: str):
+            if n_click is None or fieldToPlot is None: 
+                raise PreventUpdate
+
+            try:
+                root = tk.Tk()
+                root.withdraw()  # Hide main window
+                filePath = filedialog.askopenfilename()
+                root.destroy()
+            except Exception as e:
+                self.events.raiseError("Error opening file", str(e))
+                return no_update
+            
+            if not filePath: 
+                raise PreventUpdate
+
+            try:
+                self.analyzerMIDDS = MIDDSAnalyzer(filePath)
+            except Exception as e:
+                self.events.raiseError("Error opening file", str(e))
+                return no_update
+
+            self.udpdateAnalyzedDataOnGraph(self.analFieldPlot, self.analyzerMIDDS, fieldToPlot)
+
+            # Enable the field-plot-dropdown.
+            return self.analFieldPlot, False
+            
+        @self.app.callback(
+            Output('field-plot-graph', 'figure', allow_duplicate=True),
+            Input('field-plot-dropdown', 'value'),
+            prevent_initial_call=True
+        )
+        def updateFieldPlot(fieldToPlot: str):
+            if fieldToPlot is None or self.analyzerMIDDS is None:
+                raise PreventUpdate
+
+            self.udpdateAnalyzedDataOnGraph(self.analFieldPlot, self.analyzerMIDDS, fieldToPlot)
+
+            # Enable the field-plot-dropdown.
+            return self.analFieldPlot, False
+
+        @self.app.callback(
+            Input('save-file', 'n_clicks'),
+            prevent_initial_call=True
+        )
+        def saveFile(n_click: int):
             if n_click is None: return
 
-            root = tk.Tk()
-            root.withdraw()  # Hide main window
-            filePath = filedialog.askopenfilename()
+            if self.analyzerMIDDS is None:
+                self.events.raiseError("Cannot save file", 
+                                       "There's no processed file loaded. Open a processed file or raw messaging file first.")
+                return
 
-            self.analyzerMIDDS = MIDDSAnalyzer(filePath)
+            try:
+                root = tk.Tk()
+                root.withdraw()  # Hide main window
+                filePath = filedialog.asksaveasfilename(initialfile=self.analyzerMIDDS.getFileName(),
+                                                        defaultextension='.pmf', 
+                                                        filetypes=[("Processed MIDDS files","*.pmf"), ("All Files","*.*")])
+                root.destroy()
+                self.analyzerMIDDS.dumpMsgListToFile(filePath)
+            except Exception as e:
+                self.events.raiseError("Error saving file", str(e))
+
+            if not filePath: return
+
+            try:
+                self.analyzerMIDDS.dumpMsgListToFile(filePath)
+            except Exception as e:
+                self.events.raiseError("Error saving file", str(e))
 
     def setupClientCallbacks(self):
         self.app.clientside_callback(
@@ -1224,3 +1258,86 @@ class GUI:
             Input('clientServerStore', 'data'),
             prevent_initial_call=True
         )
+
+    # Array of colors used on the plots.
+    figureColors: tuple[str] = ('#FF6969', 
+                                '#FFB860', 
+                                '#FAFF71', 
+                                '#8DFF76', 
+                                '#58F1FF', 
+                                '#5C9AFF', 
+                                '#836DFF', 
+                                '#FF7EFF', 
+                                '#FFFFA9')
+
+    @staticmethod
+    def updateDataInPlot(ch: MIDDSChannel, figure: go.Figure, xPoints: tuple, yPoints: tuple|None, plotInGraph: bool) -> bool:
+        channelNameInGraph = f'Ch. {ch.number:02}'
+        # list of traces with the name "channelNameInGraph".
+        foundMatches = list(figure.select_traces(selector=dict(name=channelNameInGraph)))
+
+        if plotInGraph:
+            if len(xPoints) <= 0: return False
+
+            if len(foundMatches) > 0:
+                # If the trace is on the graph, update it.
+                foundMatches[0]['x'] = xPoints
+                if yPoints is not None:
+                    foundMatches[0]['y'] = yPoints
+                
+            else:
+                # If the trace is not on the graph, add it.
+                if yPoints is None:
+                    # Add a histogram graph.
+                    figure.add_trace(go.Histogram(
+                        x=xPoints,
+                        nbinsx=50,
+                        marker=dict(color=GUI.figureColors[len(figure.data) % len(GUI.figureColors)]),
+                        opacity=0.7,
+                        name=channelNameInGraph
+                    ))
+                else:
+                    # Add an Scatter graph.
+                    figure.add_trace(go.Scatter(
+                        x=xPoints,
+                        y=yPoints,
+                        mode='markers+lines',
+                        marker=dict(size=4,
+                                    color=GUI.figureColors[len(figure.data) % len(GUI.figureColors)], 
+                                    opacity=0.7),
+                        name=channelNameInGraph
+                    ))
+            return True
+        
+        elif len(foundMatches) > 0:
+            # Remove the trace from the graph if it's not set to plot.
+            for i, trace in enumerate(figure['data']):
+                if 'name' in trace and trace['name'] == channelNameInGraph:
+                    # self.fig['data] returns a tuple. Remove the trace from it.
+                    dataList = list(figure['data'])
+                    del dataList[i]
+                    figure['data'] = tuple(dataList)
+                    return True
+
+        return False
+    
+    @staticmethod
+    def udpdateAnalyzedDataOnGraph(figure: go.Figure, analyzer: MIDDSAnalyzer, fieldToPlot: str):
+        # Remove all traces from the graph (if any).
+        figure['data'] = tuple()
+
+        for ch in analyzer.data.keys():
+            data = analyzer.data[ch]
+
+            if fieldToPlot not in data: 
+                continue
+
+            figure.add_trace(go.Scatter(
+                x=data[fieldToPlot + "Time"],
+                y=data[fieldToPlot],
+                mode='markers+lines',
+                marker=dict(size=4,
+                            color=GUI.figureColors[len(figure.data) % len(GUI.figureColors)], 
+                            opacity=0.7),
+                name=f'Ch. {ch:02}'
+            ))

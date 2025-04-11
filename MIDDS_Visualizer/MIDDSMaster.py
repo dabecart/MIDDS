@@ -12,7 +12,7 @@ class MIDDSMaster:
         self.events:    GUI2BackendEvents       = events
         self.lock                               = lock
         self.config:    ProgramConfiguration    = config
-        self.decoderMIDDS:   MIDDSParser             = MIDDSParser()
+        self.decoderMIDDS:   MIDDSParser        = MIDDSParser()
 
     def applyChannelsConfiguration(self):
         if self.ser is None: return 
@@ -77,8 +77,7 @@ class MIDDSMaster:
 
         try:
             self.ser = serial.Serial(port = self.config['ProgramConfig']['SERIAL_PORT'], 
-                                        baudrate = 2000000, 
-                                        timeout = 0.001)
+                                     baudrate = 10000000)
         except Exception as e:
             self.ser = None
             self.events.deviceConnected = False
@@ -119,14 +118,14 @@ class MIDDSMaster:
         
         self.events.recording = True
         self.decoderMIDDS.createNewRecordingFile()
-        self.events.raiseMessage("Started recording", f"The recording will be stored in '{self.decoderMIDDS}'.")
+        self.events.raiseMessage("Started recording", f"The recording will be stored in '{self.decoderMIDDS.recordingFileName}'.")
         self.events.startRecording.clear()
 
     def handleStopRecordingEvent(self):
         if not self.events.stopRecording.is_set(): return
 
         self.events.recording = False
-        self.events.raiseMessage("Stopped recording", f"The recording is saved in '{MIDDSParser.recordingFileName}'.")
+        self.events.raiseMessage("Stopped recording", f"The recording is saved in '{self.decoderMIDDS.recordingFileName}'.")
         self.events.stopRecording.clear()
 
     def handleSendCommandToMIDDSEvent(self):

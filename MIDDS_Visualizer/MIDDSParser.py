@@ -1,6 +1,4 @@
 import struct
-from serial import Serial
-from collections import deque
 from datetime import datetime
 
 class MIDDSParser:
@@ -58,7 +56,9 @@ class MIDDSParser:
 
         # Add the new data to the previous stored data.
         self.inputMsg += serialData
+        return self.decodeLoop()
 
+    def decodeLoop(self)  -> dict[str,any] | None:
         readMsg: bytes = b''
         while len(self.inputMsg) > 0:
             if self.inputMsg[0:1] != b'$':

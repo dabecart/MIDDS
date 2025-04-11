@@ -212,8 +212,8 @@ class MIDDSChannel:
         cycleCount: int = 0
         previousRisingTime_ns: int
         for i, sample in enumerate(sampleList):
-            isRising:       bool    = (sample & 0x01) == 1
-            timestamp_ns:   int = (sample >> 1)
+            isRising:       bool = (sample & 0x01) == 1
+            timestamp_ns:   int  = sample >> 1
 
             if not isRising:
                 if firstRising: continue
