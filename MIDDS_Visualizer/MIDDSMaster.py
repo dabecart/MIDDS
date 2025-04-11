@@ -12,6 +12,7 @@ class MIDDSMaster:
         self.events:    GUI2BackendEvents       = events
         self.lock                               = lock
         self.config:    ProgramConfiguration    = config
+        self.decoderMIDDS:   MIDDSParser             = MIDDSParser()
 
     def applyChannelsConfiguration(self):
         if self.ser is None: return 
@@ -30,7 +31,8 @@ class MIDDSMaster:
                 time.sleep(5e-3) #Await a response from MIDDS (if any). 
                 
                 while True:
-                    newMsg = MIDDSParser.decodeMessage(self.ser, self.events.recording)
+                    newMsg = self.decoderMIDDS.decodeMessage(self.ser.read(self.ser.in_waiting), 
+                                                             self.events.recording)
                     if newMsg is None:
                         # No messages, continue with the next channel's settings.
                         break
@@ -116,8 +118,8 @@ class MIDDSMaster:
         if not self.events.startRecording.is_set(): return
         
         self.events.recording = True
-        MIDDSParser.createNewRecordingFile()
-        self.events.raiseMessage("Started recording", f"The recording will be stored in '{MIDDSParser.recordingFileName}'.")
+        self.decoderMIDDS.createNewRecordingFile()
+        self.events.raiseMessage("Started recording", f"The recording will be stored in '{self.decoderMIDDS}'.")
         self.events.startRecording.clear()
 
     def handleStopRecordingEvent(self):
@@ -140,7 +142,8 @@ class MIDDSMaster:
 
         try:
             while True:
-                newMsg = MIDDSParser.decodeMessage(self.ser, self.events.recording)
+                newMsg = self.decoderMIDDS.decodeMessage(self.ser.read(self.ser.in_waiting),
+                                                         self.events.recording)
                 if newMsg is None:
                     break
 

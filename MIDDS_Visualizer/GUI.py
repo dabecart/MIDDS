@@ -4,6 +4,9 @@ from dash.exceptions import PreventUpdate
 from dash.dependencies import Input, Output, State
 import plotly.graph_objs as go
 
+import tkinter as tk
+from tkinter import filedialog
+
 import json
 import copy
 
@@ -11,6 +14,7 @@ from MIDDSChannel import MIDDSChannel, MIDDSChannelOptions
 from MIDDSParser import MIDDSParser
 from ProgramConfiguration import ProgramConfiguration
 from GUI2BackendEvents import GUI2BackendEvents
+from MIDDSAnalyzer import MIDDSAnalyzer
 
 class GUI:
     def __init__(self, lock, events: GUI2BackendEvents, config):
@@ -23,6 +27,7 @@ class GUI:
         self.suppressChannelOptionsUpdate = False
         self.plotPeriodInsteadOfFreq = False
         self.timeDeltasPlotConfig = "H" # H, L or HL
+        self.currentScreen = "main" # main / anal
 
         self.selectedChannelNumber:   int = 0
 
@@ -112,12 +117,14 @@ class GUI:
                         html.Img(src="assets/icons/menu.svg", className="header-round-btn-image"),
                     id="toggle-sidebar", className="header-round-btn",
                     title="Toggle sidebar"),
-                    # html.Button(
-                    #     html.Img(src="assets/icons/open.svg", className="header-round-btn-image"),
-                    # id="open-file", className="header-round-btn"),
-                    # html.Button(
-                    #     html.Img(src="assets/icons/save.svg", className="header-round-btn-image"),
-                    # id="save-file", className="header-round-btn")
+                    html.Button(
+                        html.Img(src="assets/icons/open.svg", className="header-round-btn-image"),
+                    id="open-file", className="header-round-btn initialHidden",
+                    title="Open recording file."),
+                    html.Button(
+                        html.Img(src="assets/icons/save.svg", className="header-round-btn-image"),
+                    id="save-file", className="header-round-btn initialHidden",
+                    title="Save processed recording file.")
                 ], className="header-top-left-buttons"),
 
                 html.H2("MIDDS Visualizer", className="title",
@@ -198,8 +205,11 @@ class GUI:
                                     title="Discard all changes done to MIDDS' configuration."),
                     ], className="apply-config-button-div")
                 ], id="apply-config", className="apply-config hidden")
-            ], id="sidebar", className="sidebar"),
+            ], id="main-sidebar", className="sidebar"),
             
+            html.Div([
+            ], id="analyzer-sidebar", className="sidebar initialHidden"),
+
             # Main Content
             html.Main([
                 # Frequency Graph
@@ -224,6 +234,7 @@ class GUI:
 
                     html.Section([
                         html.Div([
+                            # TODO: Make buttons in deltas prettier! https://dash-bootstrap-components.opensource.faculty.ai/docs/components/button_group/#:~:text=RadioItems%20as%20ButtonGroup
                             html.Label("Time deltas", className="section-title"),
                             html.Div([
                                     html.Button("High", id="deltas-plot-h", className="deltas-plot-options-btn",
@@ -263,7 +274,50 @@ class GUI:
                     html.Section(id="monitor-channels", className="monitor-channels"),
                 ],className="monitors-row"),
 
-            ], id="main-content", className="main-content"),
+            ], id="main-content", className="main-content sidebar-open"),
+
+            # Analyzer Content
+            html.Main([
+                # Messages per channel. 
+                html.Section([
+                    html.Div([
+                        html.Button(
+                                html.Img(src="assets/icons/triangle.svg", className="header-round-btn-image"),
+                        id="toggle-messaging-timeline", className="header-round-btn section-accordion-toggler",
+                        title="Show or hide the messaging timeline."),
+
+                        html.Label("Messaging timeline", className="section-title"),
+                    ], className="anal-title-div"),
+                ], id="timeline-div", className="timeline-div"),
+                
+                html.Hr(),
+
+                # Field for all channels.
+                html.Section([
+                    html.Div([
+                        html.Button(
+                            html.Img(src="assets/icons/triangle.svg", className="header-round-btn-image"),
+                        id="toggle-field-plot", className="header-round-btn section-accordion-toggler",
+                        title="Show or hide the field plot."),
+                        
+                        html.Label("Field plot", className="section-title"),
+                        
+                        dcc.Dropdown(
+                            id="field-plot-dropdown", 
+                            options=[
+                                {"label": "Frequencies",            "value": "frequency"},
+                                {"label": "Duty cycles",            "value": "dutyCycle"}, 
+                                {"label": "Rising deltas",          "value": "riseDelta"},
+                                {"label": "Falling deltas",         "value": "fallDelta"},
+                            ], 
+                            value="frequency",
+                            clearable=False
+                        ),
+                    ], className="anal-title-div"),
+                    html.Section(id="field-plot-section", className="field-plot-section"),
+                ], id="field-plot-div", className="field-plot-div"),
+
+            ], id="analyzer-content", className="main-content sidebar-open initialHidden"),
             
             # Error Notification
             html.Div([
@@ -296,7 +350,12 @@ class GUI:
                 html.P([
                     "Made by ",
                     html.A("@dabecart", href="https://www.instagram.com/dabecart", target="_blank")
-                ])
+                ]),
+                html.Button(
+                    html.Img(src="assets/icons/analyzer.svg", className="header-round-btn-image",
+                             title="Switch between the monitor and analyzer screen.",
+                             id="screens-btn-img"),
+                id="screens-btn", className="header-round-btn screens-btn"),
             ], className="footer"),
             
             html.Div(id="dummy", style={"display": "none"}),
@@ -308,15 +367,112 @@ class GUI:
     def setupCallbacks(self):
         # Callback for toggling sidebar visibility.
         @self.app.callback(
-            Output("sidebar", "className"),
-            Output("main-content", "className"),
+            Output("main-sidebar", "className", allow_duplicate=True),
+            Output("analyzer-sidebar", "className", allow_duplicate=True),
+            Output("main-content", "className", allow_duplicate=True),
+            Output("analyzer-content", "className", allow_duplicate=True),
+
             Input("toggle-sidebar", "n_clicks"),
-            State("sidebar", "className")
+            State("main-sidebar", "className"),
+            State("analyzer-sidebar", "className"),
+            prevent_initial_call=True
         )
-        def toggle_sidebar(n_clicks, current_class):
-            if n_clicks and "hidden" not in current_class:
-                return "sidebar hidden", "main-content"
-            return "sidebar", "main-content sidebar-open"
+        def toggleSidebar(n_clicks, currentClassMain, currentClassAnal):
+            if self.currentScreen == "main":
+                if n_clicks and "hidden" not in currentClassMain:
+                    return "sidebar hidden", no_update, "main-content",              no_update
+                return     "sidebar",        no_update, "main-content sidebar-open", no_update
+            elif self.currentScreen == "anal":
+                if n_clicks and "hidden" not in currentClassAnal:
+                    return no_update, "sidebar hidden", no_update, "main-content"
+                return     no_update, "sidebar",        no_update, "main-content sidebar-open"
+            else:
+                raise Exception("Wrong current screen")
+
+        # Updates screen content and sidebar.
+        @self.app.callback(
+            Output("main-content", "className", allow_duplicate=True),
+            Output("analyzer-content", "className", allow_duplicate=True),
+            Output("main-sidebar", "className", allow_duplicate=True),
+            Output("analyzer-sidebar", "className", allow_duplicate=True),
+            Output("screens-btn-img", "src"),
+            Output("open-file", "className"),
+            Output("save-file", "className"),
+            
+            Input('clientServerStore', 'data'),
+            State("main-content", "className"),
+            State("analyzer-content", "className"),
+            State("main-sidebar", "className"),
+            State("analyzer-sidebar", "className"),
+            State("open-file", "className"),
+            State("save-file", "className"),
+            prevent_initial_call=True
+        )
+        def updateScreenFromSharedData(clientServerStore, mainContentClass: str, 
+                                       analContentClass: str, mainSidebarClass: str, 
+                                       analSidebarClass: str, openFile: str, saveFile: str):
+            loadedStore = json.loads(clientServerStore)
+            dataScreen = loadedStore['screen']
+            if dataScreen == self.currentScreen: raise PreventUpdate
+
+            self.currentScreen = dataScreen
+
+            if self.currentScreen == "main":
+                iconSrc = "assets/icons/main.svg"
+                if "initialHidden" not in analContentClass:
+                    analContentClass += " initialHidden"
+                if "initialHidden" not in analSidebarClass:
+                    analSidebarClass += " initialHidden"
+
+                mainContentClass = mainContentClass.replace('sidebar-open', '').replace('initialHidden', '')
+                mainSidebarClass = mainSidebarClass.replace('initialHidden', '')
+                if "hidden" not in mainSidebarClass:
+                    mainSidebarClass += " hidden"
+
+                if "initialHidden" not in openFile:
+                    openFile += " initialHidden"
+                if "initialHidden" not in saveFile:
+                    saveFile += " initialHidden"
+
+            elif self.currentScreen == "anal":
+                iconSrc = "assets/icons/analyzer.svg"
+                if "initialHidden" not in mainContentClass:
+                    mainContentClass += " initialHidden"
+                if "initialHidden" not in mainSidebarClass:
+                    mainSidebarClass += " initialHidden"
+
+                analContentClass = analContentClass.replace('sidebar-open', '')
+                analContentClass = analContentClass.replace('initialHidden', '')
+                analSidebarClass = analSidebarClass.replace('initialHidden', '')
+                if "hidden" not in analSidebarClass:
+                    analSidebarClass += " hidden"
+
+                openFile = openFile.replace('initialHidden', '')
+                saveFile = saveFile.replace('initialHidden', '')
+            else:
+                raise Exception("Wrong current screen")
+
+            return mainContentClass, analContentClass, mainSidebarClass, analSidebarClass, iconSrc, openFile, saveFile
+
+        # Requests to switch screens on click.
+        @self.app.callback(
+            Output('clientServerStore', 'data'),
+
+            Input("screens-btn", "n_clicks"),
+            State('clientServerStore', 'data'),
+            prevent_initial_call=True
+        )
+        def switchScreens(n_clicks, clientServerStore):
+            loadedStore = json.loads(clientServerStore)
+
+            if self.currentScreen == "main":
+                loadedStore['screen'] = "anal"
+            elif self.currentScreen == "anal":
+                loadedStore['screen'] = "main"
+            else:
+                raise Exception("Wrong current screen")
+
+            return json.dumps(loadedStore)
 
         # Callback to toggle the recording of the device.
         @self.app.callback(
@@ -973,6 +1129,8 @@ class GUI:
         )
         def updateInterfaceFromClient(clientServerStore):
             loadedStore = json.loads(clientServerStore)
+            if 'error-message-div' not in loadedStore: raise PreventUpdate
+
             return loadedStore['error-message-div']
 
         @self.app.callback(
@@ -1001,6 +1159,50 @@ class GUI:
                 self.timeDeltasPlotConfig = "HL"
             return retH, retL, retHL
 
+        @self.app.callback(
+            Output('timeline-div', 'className'),
+
+            Input('toggle-messaging-timeline', 'n_clicks'),
+            State('timeline-div', 'className'),
+            prevent_inital_call=True
+        )
+        def toggleMessagingTimelineDiv(n_click: int, divClassName: str):
+            if n_click is None:
+                raise PreventUpdate
+
+            if " hidden" in divClassName:
+                return divClassName.replace(" hidden", "")
+            else:
+                return divClassName + " hidden"
+
+        @self.app.callback(
+            Output('field-plot-div', 'className'),
+
+            Input('toggle-field-plot', 'n_clicks'),
+            State('field-plot-div', 'className'),
+            prevent_inital_call=True
+        )
+        def toggleFieldPlotDiv(n_click: int, divClassName: str):
+            if n_click is None:
+                raise PreventUpdate
+
+            if " hidden" in divClassName:
+                return divClassName.replace(" hidden", "")
+            else:
+                return divClassName + " hidden"
+
+        @self.app.callback(
+            Input('open-file', 'n_clicks'),
+            prevent_inital_call=True
+        )
+        def loadFileRoute(n_click: int):
+            if n_click is None: return
+
+            root = tk.Tk()
+            root.withdraw()  # Hide main window
+            filePath = filedialog.askopenfilename()
+
+            self.analyzerMIDDS = MIDDSAnalyzer(filePath)
 
     def setupClientCallbacks(self):
         self.app.clientside_callback(
