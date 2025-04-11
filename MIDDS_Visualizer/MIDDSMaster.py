@@ -77,7 +77,7 @@ class MIDDSMaster:
 
         try:
             self.ser = serial.Serial(port = self.config['ProgramConfig']['SERIAL_PORT'], 
-                                     baudrate = 10000000)
+                                     baudrate = 10000000, timeout=0.001)
         except Exception as e:
             self.ser = None
             self.events.deviceConnected = False
@@ -92,8 +92,6 @@ class MIDDSMaster:
 
         # Read the connected to PROTO MIDDS message.
         print(self.ser.readline())
-
-        self.sendSYNC()
 
         self.events.deviceConnected = True
 
