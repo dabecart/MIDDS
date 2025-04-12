@@ -23,10 +23,13 @@ void init_cb64(CircularBuffer64* pCB, uint32_t bufferSize) {
 }
 
 inline uint8_t push_cb64(CircularBuffer64* pCB, uint64_t ucItem) {
-    if(pCB->locked || (pCB->len >= pCB->size)) return 0;
+    if(pCB->locked || (pCB->len >= pCB->size)){
+    	return 0;
+    }
 
     pCB->data[pCB->head] = ucItem;
-    pCB->head = (pCB->head + 1) % pCB->size;
+    pCB->head++;
+    if(pCB->head >= pCB->size) pCB->head = 0;
     pCB->len++; 
     return 1;
 }
@@ -35,7 +38,8 @@ inline uint8_t pop_cb64(CircularBuffer64* pCB, uint64_t* item) {
     if(pCB->len < 1) return 0;
 
     *item = pCB->data[pCB->tail];
-    pCB->tail = (pCB->tail + 1) % pCB->size;
+    pCB->tail++;
+    if(pCB->tail >= pCB->size) pCB->tail = 0;
     pCB->len--;
     return 1;
 }
@@ -48,6 +52,8 @@ inline uint8_t peek_cb64(CircularBuffer64* pCB, uint64_t* item) {
 }
 
 void empty_cb64(CircularBuffer64* pCB) {
-    pCB->tail = pCB->head;
+    pCB->tail = 0;
+    pCB->head = 0;
     pCB->len = 0;
+    memset(pCB->data, 0, pCB->size);
 }

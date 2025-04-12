@@ -48,8 +48,9 @@ class MIDDSParser:
                 # line! Call createNewRecordingFile beforehand.
                 self.createNewRecordingFile()
 
-            with open(self.recordingFileName, 'ab') as f:
-                f.write(serialData)
+            if len(serialData) > 0:
+                with open(self.recordingFileName, 'ab') as f:
+                    f.write(serialData)
         elif self.recordingFileName != "":
             # End recording.
             self.recordingFileName = ""
@@ -67,13 +68,14 @@ class MIDDSParser:
                 continue  
 
             if len(self.inputMsg) < 2:
+                # Not enough data.
                 break
 
             readMsg = self.inputMsg[0:2]
             if readMsg == b'$I':
                 if len(self.inputMsg) < MIDDSParser.COMMS_MSG_INPUT_LEN:
                     # Not enough data. Wait for the next iteration.
-                    continue
+                    break
                 
                 readMsg = self.popNFromInputMsg(MIDDSParser.COMMS_MSG_INPUT_LEN)
                 try:
@@ -85,7 +87,7 @@ class MIDDSParser:
             elif readMsg == b'$O':
                 if len(self.inputMsg) < MIDDSParser.COMMS_MSG_OUTPUT_LEN:
                     # Not enough data. Wait for the next iteration.
-                    continue
+                    break
 
                 readMsg = self.popNFromInputMsg(MIDDSParser.COMMS_MSG_OUTPUT_LEN)
                 try:
@@ -106,7 +108,7 @@ class MIDDSParser:
                     # If the sample count is not a number, the message is to be discarded.
                     # As nothing has been popped, remove the first item of the input message.
                     self.inputMsg = self.inputMsg[1:]
-                    break
+                    continue
 
                 if len(self.inputMsg) < (MIDDSParser.COMMS_MSG_MONITOR_HEADER_LEN + sampleCount*8):
                     # Not enough bytes.
@@ -116,8 +118,7 @@ class MIDDSParser:
                 try:
                     return MIDDSParser.decodeMonitor(readMsg) 
                 except:
-                    # Error while decoding. Discard the first byte of the read message, append it
-                    # to the deque again and recalculate.
+                    # Error while decoding.
                     self.discardMessage(readMsg)
                 
             elif readMsg == b'$F':
@@ -142,7 +143,6 @@ class MIDDSParser:
 
                 if readChar != b'\n':
                     # There are still some characters missing from the error message.
-                    self.reconstructMessage(readMsg)
                     break
 
                 if len(readMsg) >= MIDDSParser.COMMS_ERROR_MAX_LEN:
@@ -156,6 +156,9 @@ class MIDDSParser:
                     # Error while decoding. Discard the first byte of the read message, append it
                     # to the deque again and recalculate.
                     self.discardMessage(readMsg)
+            else:
+                # Discard the message. The header is not valid.
+                self.inputMsg = self.inputMsg[2:]
                 
         return None
 

@@ -63,19 +63,24 @@ void sendData() {
 
     if(!usbConnected) return;
 
-    if(outMsgLen == 0) {
+    // If there's no pending message to send (outMsgLen == 0) and there's something saved to send
+    // (outputBuffer.len > 0) calculate the number of bytes to send.
+    if((outMsgLen == 0) && (outputBuffer.len > 0)) {
         outMsgLen = outputBuffer.len;
         if(outMsgLen > USB_MAX_DATA_PACKAGE_SIZE) outMsgLen = USB_MAX_DATA_PACKAGE_SIZE;
         popN_cb(&outputBuffer, outMsgLen, outMsg);
     }
 
-    if(CDC_Transmit_FS(outMsg, outMsgLen) != USBD_BUSY) {
+    // CDC_Transmit_FS really transmits the message when it des not return USBD_BUSY. 
+    if((outMsgLen != 0) && (CDC_Transmit_FS(outMsg, outMsgLen) != USBD_BUSY)) {
+        // When transmitted, set the output message length back to zero. 
         outMsgLen = 0;
     }
 }
 
 uint8_t encodeGPIOMessage(const ChannelMessageType msgType, const ChannelMessage msg) {
     static uint8_t outMsgBuffer[CIRCULAR_BUFFER_MAX_SIZE]; 
+    uint32_t maxLength = outputBuffer.size - outputBuffer.len;
     uint32_t messageLen = 0;
     
     switch (msgType) {
@@ -90,12 +95,12 @@ uint8_t encodeGPIOMessage(const ChannelMessageType msgType, const ChannelMessage
         }
 
         case GPIO_MSG_MONITOR: {
-            messageLen = encodeMonitor(msg.monitor, outMsgBuffer, CIRCULAR_BUFFER_MAX_SIZE);
+            messageLen = encodeMonitor(msg.monitor, outMsgBuffer, maxLength);
             break;
         }
 
         case GPIO_MSG_ERROR: {
-            messageLen = encodeError(&msg.error, outMsgBuffer, CIRCULAR_BUFFER_MAX_SIZE);
+            messageLen = encodeError(&msg.error, outMsgBuffer, maxLength);
             break;
         }
 
@@ -105,7 +110,7 @@ uint8_t encodeGPIOMessage(const ChannelMessageType msgType, const ChannelMessage
         }
     }
 
-    if((messageLen == 0) || (messageLen > CIRCULAR_BUFFER_MAX_SIZE)) {
+    if((messageLen == 0) || (messageLen > maxLength)) {
         return 0;
     }
 
@@ -185,50 +190,63 @@ uint16_t encodeInput(const ChannelInput* dataStruct, uint8_t* outBuffer) {
 }
 
 uint16_t encodeMonitor(HWTimerChannel* hwTimer, uint8_t* outBuffer, const uint16_t maxMsgLen){
-    if(hwTimer == NULL || hwTimer->data.len == 0) return 0;
+    if((hwTimer == NULL) || (outBuffer == NULL) || 
+       (hwTimer->data.len == 0) || (maxMsgLen < COMMS_MIN_MONITOR_MSG_LEN)){
+        return 0;
+    } 
 
     uint32_t currentMessages = hwTimer->data.len;   // Make it constant at this point.
-    if(currentMessages > 9999) currentMessages = 9999;
-    
+    if(currentMessages > COMMS_MAX_TIMESTAMPS_IN_MONITOR){
+        currentMessages = COMMS_MAX_TIMESTAMPS_IN_MONITOR;
+    }
+
     // To make the pop_cb64, this header must be a multiple of eight bytes long (in binary output 
     // mode at least).
-    uint16_t msgSize = snprintf((char*) outBuffer, maxMsgLen, 
-                                "%c%s%02d%04ld", 
-                                COMMS_MSG_SYNC, COMMS_MSG_MONITOR_HEAD,
-                                hwTimer->channelNumber, currentMessages);
+    // The header is 8 bytes long, but the number of messages is written at the end of the loop.
+    uint32_t msgSize = COMMS_MSG_MONITOR_HEADER_LEN;
+    uint32_t numberOfMsgs;
 
 #if MCU_TX_IN_ASCII
     uint64_t readVal;
-    for(uint8_t countIndex = 0; countIndex < currentMessages; countIndex++) {
+    for(numberOfMsgs = 0; 
+        (numberOfMsgs < currentMessages) && ((maxMsgLen - msgSize) > 16);
+        numberOfMsgs++) {
         pop_cb64(&hwTimer->data, &readVal);
         msgSize += snprintf64Hex(
                         outBuffer + msgSize, 
                         maxMsgLen - msgSize,
                         readVal
                     );
-        if((maxMsgLen - msgSize) <= 16) {
-            break;
-        }
     }
     msgSize += snprintf(outBuffer + msgSize, maxMsgLen-msgSize, "\n");
 #else
     uint64_t readVal;
-    for(uint8_t countIndex = 0; countIndex < currentMessages; countIndex++) {
+    static uint64_t previousReadVal;
+    for(numberOfMsgs = 0; 
+        (numberOfMsgs < currentMessages) && ((maxMsgLen - msgSize) > sizeof(uint64_t)); 
+        numberOfMsgs++) {
         pop_cb64(&hwTimer->data, &readVal);
 
         // The LSB is the value of the channel (HIGH or LOW). The rest is the timestamp in internal 
         // time. Convert to UNIX time the timestamp, shift it to the left one bit and add the value
         // of the channel.
         readVal = (convertFromInternalToUNIXTime(readVal >> 1) << 1) | (readVal & 0x01ULL);
+        if(previousReadVal > readVal){
+            readVal *= 1;
+        }
+        if((previousReadVal&0x01) == (readVal&0x01)){
+            readVal *= 1;
+        }
+        previousReadVal = readVal;
 
         memcpy(outBuffer + msgSize, &readVal, sizeof(uint64_t));
         msgSize += sizeof(uint64_t);
-        
-        if((maxMsgLen - msgSize) <= sizeof(uint64_t)) {
-            break;
-        }
     }
 #endif
+
+    // Add the header now.
+    sprintf((char*) outBuffer, "%c%s%02d%04ld", 
+            COMMS_MSG_SYNC, COMMS_MSG_MONITOR_HEAD, hwTimer->channelNumber, numberOfMsgs);
 
     hwTimer->lastPrintTick = HAL_GetTick();
     return msgSize;
@@ -569,24 +587,20 @@ void establishConnection(uint8_t connect) {
         empty_cb(&outputBuffer);
         pushN_cb(&outputBuffer, (uint8_t*) WELCOME_MSG, strlen(WELCOME_MSG));
     }else {
-        // Set all channels as disabled before disconnection.
-        for(int i = 0; i < CH_COUNT; i++) {
-            Channel* ch = getChannelFromNumber(i);
-            if(ch == NULL) continue;
-
-            ch->mode = CHANNEL_DISABLED;
-            applyChannelConfiguration(ch);
-
-            if(ch->type == CHANNEL_TIMER) {
-                // Erase the buffers.
-                empty_cb64(&ch->data.timer.timerHandler->data);
-            }
-        }
-        setShiftRegisterValues(&chCtrl);
-
         // Transmit disconnection message.
         while(CDC_Transmit_FS((uint8_t*) DISCONNECTION_MSG, strlen(DISCONNECTION_MSG)) == USBD_BUSY){}
     }
+
+    // Set all channels as disabled.
+    for(int i = 0; i < CH_COUNT; i++) {
+        Channel* ch = getChannelFromNumber(i);
+        if(ch == NULL) continue;
+
+        ch->mode = CHANNEL_DISABLED;
+        applyChannelConfiguration(ch);
+
+    }
+    setShiftRegisterValues(&chCtrl);
 }
 
 uint64_t convertFromInternalToUNIXTime(uint64_t tIn) {

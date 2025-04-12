@@ -93,6 +93,8 @@ void initChannelFromHWTimer_(Channel* ch, HWTimerChannel* hwTimer) {
 void applyChannelConfiguration(Channel* ch) {
     if(ch->type == CHANNEL_TIMER) {
         applyTimerChannelConfig_(ch);
+        // Erase the buffers.
+        empty_cb64(&ch->data.timer.timerHandler->data);
     }else if(ch->type == CHANNEL_GPIO) {
         applyGPIOChannelConfig_(ch);
     }else {

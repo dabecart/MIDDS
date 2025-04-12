@@ -23,7 +23,7 @@ if __name__ == '__main__':
         pass
 
     events.stopEvent.set()
-    decoderProcess.join()
+    decoderProcess.join(10)
 
     config.saveConfig()
     

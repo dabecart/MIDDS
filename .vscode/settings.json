@@ -28,7 +28,8 @@
         "streambuf": "c",
         "functional": "c",
         "algorithm": "c",
-        "stm32g4xx_hal_tim.h": "c"
+        "stm32g4xx_hal_tim.h": "c",
+        "cstdint": "c"
     },
     "makefile.makefilePath": "Debug\\makefile",
     "cSpell.words": [

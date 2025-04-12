@@ -30,6 +30,9 @@ class MIDDSAnalyzer:
             monitorData = np.array(monitorPerChannel[ch], dtype=np.uint64)
             edgeTimestamps_ns, edges, periods, periodsTime, highDeltas, highDeltasTime, lowDeltas, lowDeltasTime = self.calculateChannelPeriods_(monitorData)
             frequencies = self.calculateFrequencies_(periods)
+            if not np.all(edgeTimestamps_ns[1:] >= edgeTimestamps_ns[:-1]):
+                print("shit")
+                
             self.data[ch] = {
                 "timestamp":        edgeTimestamps_ns,
                 "edge":             edges,
@@ -70,7 +73,7 @@ class MIDDSAnalyzer:
         highDeltasIndex = 0
         lowDeltasIndex  = 0        
 
-        for i, sample in enumerate(monitorEdges[1:]):
+        for i, sample in enumerate(monitorEdges):
             edgeTimestamps_ns[i] = sample >> 1
             edges[i] = (sample & 0x01) == 1
 

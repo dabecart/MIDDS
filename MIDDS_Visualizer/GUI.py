@@ -11,6 +11,7 @@ from tkinter import filedialog
 
 import json
 import copy
+import time
 
 from MIDDSChannel import MIDDSChannel, MIDDSChannelOptions
 from MIDDSParser import MIDDSParser
@@ -436,8 +437,8 @@ class GUI:
                                        analContentClass: str, mainSidebarClass: str, 
                                        analSidebarClass: str, openFile: str, saveFile: str):
             loadedStore = json.loads(clientServerStore)
-            dataScreen = loadedStore['screen']
-            if dataScreen == self.currentScreen: raise PreventUpdate
+            dataScreen = loadedStore.get('screen', None)
+            if dataScreen is None or dataScreen == self.currentScreen: raise PreventUpdate
 
             self.currentScreen = dataScreen
 
@@ -539,7 +540,6 @@ class GUI:
         )
         def toggleConnection(n_clicks, n_submits, serialName):
             self.config['ProgramConfig']['SERIAL_PORT'] = serialName
-            self.config.saveConfig()
 
             if ctx.triggered_id == "serial-name" and self.events.deviceConnected:
                 # The enter key should only be used to connect, not to disconnect.
@@ -554,7 +554,11 @@ class GUI:
                     self.events.stopRecording.set()
             else:
                 self.events.openSerialPort.set()
-        
+
+            time.sleep(1)
+
+            self.config.saveConfig()
+
         @self.app.callback(
             Output("connect-btn", "children"),
             Output("connect-btn", "className"),
@@ -651,11 +655,12 @@ class GUI:
         def applyNewConfiguration(n_clicks):
             self.channelsLock.acquire()
             
-            self.config.copyFrom(self.temporalConfig)
+            try:
+                self.config.copyFrom(self.temporalConfig)
 
-            self.config.saveConfig()
-
-            self.channelsLock.release()
+                self.config.saveConfig()
+            finally:
+                self.channelsLock.release()
             
             if self.events.deviceConnected:
                 self.events.applySettings.set()
@@ -777,117 +782,117 @@ class GUI:
             monitorWidgets = []
 
             self.channelsLock.acquire()
-            for ch in self.config.channels:
-                title = f"Ch. {ch.number:02}"
-                if ch.name != "":
-                    title += f": {ch.name}" 
+            try:
+                for ch in self.config.channels:
+                    title = f"Ch. {ch.number:02}"
+                    if ch.name != "":
+                        title += f": {ch.name}" 
 
-                if ch.mode == "IN":
-                    inputContent = [
-                        html.P(title),
-                        html.P(ch.signalType),
-                    ]
+                    if ch.mode == "IN":
+                        inputContent = [
+                            html.P(title),
+                            html.P(ch.signalType),
+                        ]
 
-                    if ch.modeSettings.get("INRequestLevel", False):
-                        inputContent.append(
-                            html.P(f"Level:      {ch.channelLevel}")
+                        if ch.modeSettings.get("INRequestLevel", False):
+                            inputContent.append(
+                                html.P(f"Level:      {ch.channelLevel}")
+                            )
+                        
+                        if ch.modeSettings.get("INRequestFrequency", False):
+                            inputContent.extend([
+                                html.P(f"Frequency:  {ch.frequency} Hz"),
+                                html.P(f"Duty cycle: {ch.dutyCycle} %"),
+                            ])
+
+                        inputWidgets.append(
+                            html.Div(inputContent, className="gpio-widget input-gpio-widget")
                         )
-                    
-                    if ch.modeSettings.get("INRequestFrequency", False):
-                        inputContent.extend([
-                            html.P(f"Frequency:  {ch.frequency} Hz"),
-                            html.P(f"Duty cycle: {ch.dutyCycle} %"),
-                        ])
 
-                    inputWidgets.append(
-                        html.Div(inputContent, className="gpio-widget input-gpio-widget")
-                    )
+                    elif ch.mode == "OU":
+                        outputContent = [
+                            html.P(title),
+                            html.P(ch.signalType),
+                            html.P(f"Level:      {ch.channelLevel}"),
+                            html.Button("HIGH", 
+                                        id={"type": "gpio-set-high", "index": ch.number}, 
+                                        className="gpio-btn"),
+                            html.Button("LOW",  
+                                        id={"type": "gpio-set-low", "index": ch.number}, 
+                                        className="gpio-btn"),
+                        ]
 
-                elif ch.mode == "OU":
-                    outputContent = [
-                        html.P(title),
-                        html.P(ch.signalType),
-                        html.P(f"Level:      {ch.channelLevel}"),
-                        html.Button("HIGH", 
-                                    id={"type": "gpio-set-high", "index": ch.number}, 
-                                    className="gpio-btn"),
-                        html.Button("LOW",  
-                                    id={"type": "gpio-set-low", "index": ch.number}, 
-                                    className="gpio-btn"),
-                    ]
-
-                    outputWidgets.append(
-                        html.Div(outputContent, className="gpio-widget output-gpio-widget")
-                    )
-                elif ch.mode in ["MR", "MF", "MB"]:
-                    monitorContent = [
-                        html.P(title),
-                        html.P(ch.signalType),
-                    ]
-
-                    if ch.modeSettings.get(ch.mode + "CalculateFrequency", False):
-                        monitorContent.extend([
-                            html.P(f"Frequency:  {ch.frequency} Hz"),
-                            html.P(f"Duty cycle: {ch.dutyCycle} %"),
-                        ])
-
-                    if ch.mode == "MR":
-                        monitorContent.append(
-                            html.P(f"Period:  {ch.risingDelta}"),
+                        outputWidgets.append(
+                            html.Div(outputContent, className="gpio-widget output-gpio-widget")
                         )
-                    elif ch.mode == "MF":
-                        monitorContent.append(
-                            html.P(f"Period: {ch.fallingDelta}"),
+                    elif ch.mode in ["MR", "MF", "MB"]:
+                        monitorContent = [
+                            html.P(title),
+                            html.P(ch.signalType),
+                        ]
+
+                        if ch.modeSettings.get(ch.mode + "CalculateFrequency", False):
+                            monitorContent.extend([
+                                html.P(f"Frequency:  {ch.frequency} Hz"),
+                                html.P(f"Duty cycle: {ch.dutyCycle} %"),
+                            ])
+
+                        if ch.mode == "MR":
+                            monitorContent.append(
+                                html.P(f"Period:  {ch.risingDelta}"),
+                            )
+                        elif ch.mode == "MF":
+                            monitorContent.append(
+                                html.P(f"Period: {ch.fallingDelta}"),
+                            )
+                        elif ch.mode == "MB":
+                            # See fallingDelta and risingDelta to understand why the P labels are mixed.
+                            monitorContent.append(html.P(f"High Δ: {ch.fallingDelta}"))
+                            monitorContent.append(html.P(f"Low Δ: {ch.risingDelta}"))
+
+                        monitorWidgets.append(
+                            html.Div(monitorContent, className="gpio-widget input-gpio-widget")
                         )
-                    elif ch.mode == "MB":
-                        # See fallingDelta and risingDelta to understand why the P labels are mixed.
-                        monitorContent.append(html.P(f"High Δ: {ch.fallingDelta}"))
-                        monitorContent.append(html.P(f"Low Δ: {ch.risingDelta}"))
 
-                    monitorWidgets.append(
-                        html.Div(monitorContent, className="gpio-widget input-gpio-widget")
+                    plotInFreqGraph = ch.modeSettings.get(ch.mode + "PlotFreqInGraph", False)
+                    self.frequencyFig.update_layout(
+                        yaxis=dict(
+                            title = 'Period (s)' if self.plotPeriodInsteadOfFreq else "Frequency (Hz)",
+                        ),
                     )
+                    if self.updateDataInPlot(ch            = ch,
+                                            figure        = self.frequencyFig, 
+                                            xPoints       = tuple(ch.freqsUpdates), 
+                                            yPoints       = tuple(1.0/f if self.plotPeriodInsteadOfFreq else f for f in ch.freqs), 
+                                            plotInGraph   = plotInFreqGraph):
+                        retFreqGraph = self.frequencyFig
 
-                plotInFreqGraph = ch.modeSettings.get(ch.mode + "PlotFreqInGraph", False)
-                self.frequencyFig.update_layout(
-                    yaxis=dict(
-                        title = 'Period (s)' if self.plotPeriodInsteadOfFreq else "Frequency (Hz)",
-                    ),
-                )
-                if self.updateDataInPlot(ch            = ch,
-                                         figure        = self.frequencyFig, 
-                                         xPoints       = tuple(ch.freqsUpdates), 
-                                         yPoints       = tuple(1.0/f if self.plotPeriodInsteadOfFreq else f for f in ch.freqs), 
-                                         plotInGraph   = plotInFreqGraph):
-                    retFreqGraph = self.frequencyFig
+                    plotInDutyGraph = ch.modeSettings.get(ch.mode + "PlotDutyCycleInGraph", False)
+                    if self.updateDataInPlot(ch            = ch,
+                                            figure        = self.dutyCycleFig, 
+                                            xPoints       = tuple(ch.freqsUpdates), 
+                                            yPoints       = tuple(ch.dutyCycles), 
+                                            plotInGraph   = plotInDutyGraph):
+                        retDutyGraph = self.dutyCycleFig
 
-                plotInDutyGraph = ch.modeSettings.get(ch.mode + "PlotDutyCycleInGraph", False)
-                if plotInDutyGraph:
-                    pass
-                if self.updateDataInPlot(ch            = ch,
-                                         figure        = self.dutyCycleFig, 
-                                         xPoints       = tuple(ch.freqsUpdates), 
-                                         yPoints       = tuple(ch.dutyCycles), 
-                                         plotInGraph   = plotInDutyGraph):
-                    retDutyGraph = self.dutyCycleFig
+                    if self.timeDeltasPlotConfig == "H":
+                        deltasToPlot = tuple(t for t, edge in ch.deltas if edge)
+                    elif self.timeDeltasPlotConfig == "L":
+                        deltasToPlot = tuple(t for t, edge in ch.deltas if not edge)
+                    elif self.timeDeltasPlotConfig == "HL":
+                        deltasToPlot = tuple(t for t, _ in ch.deltas)
+                    else:
+                        deltasToPlot = ()
+                    plotInDeltasGraph = ch.modeSettings.get(ch.mode + "PlotDeltasInGraph", False)
+                    if self.updateDataInPlot(ch            = ch,
+                                            figure        = self.deltaFig, 
+                                            xPoints       = deltasToPlot, 
+                                            yPoints       = None, 
+                                            plotInGraph   = plotInDeltasGraph):
+                        retDeltaGraph = self.deltaFig
 
-                if self.timeDeltasPlotConfig == "H":
-                    deltasToPlot = tuple(t for t, edge in ch.deltas if edge)
-                elif self.timeDeltasPlotConfig == "L":
-                    deltasToPlot = tuple(t for t, edge in ch.deltas if not edge)
-                elif self.timeDeltasPlotConfig == "HL":
-                    deltasToPlot = tuple(t for t, _ in ch.deltas)
-                else:
-                    deltasToPlot = ()
-                plotInDeltasGraph = ch.modeSettings.get(ch.mode + "PlotDeltasInGraph", False)
-                if self.updateDataInPlot(ch            = ch,
-                                         figure        = self.deltaFig, 
-                                         xPoints       = deltasToPlot, 
-                                         yPoints       = None, 
-                                         plotInGraph   = plotInDeltasGraph):
-                    retDeltaGraph = self.deltaFig
-
-            self.channelsLock.release()
+            finally:
+                self.channelsLock.release()
 
             return retFreqGraph, retDutyGraph, retDeltaGraph, inputWidgets, outputWidgets, monitorWidgets
 
@@ -1189,6 +1194,8 @@ class GUI:
                 self.events.raiseError("Error opening file", str(e))
                 return no_update
 
+            raise PreventUpdate
+
             self.udpdateAnalyzedDataOnGraph(self.analFieldPlot, self.analyzerMIDDS, fieldToPlot)
 
             # Enable the field-plot-dropdown.
@@ -1200,6 +1207,7 @@ class GUI:
             prevent_initial_call=True
         )
         def updateFieldPlot(fieldToPlot: str):
+            raise PreventUpdate
             if fieldToPlot is None or self.analyzerMIDDS is None:
                 raise PreventUpdate
 
@@ -1227,7 +1235,6 @@ class GUI:
                                                         defaultextension='.pmf', 
                                                         filetypes=[("Processed MIDDS files","*.pmf"), ("All Files","*.*")])
                 root.destroy()
-                self.analyzerMIDDS.dumpMsgListToFile(filePath)
             except Exception as e:
                 self.events.raiseError("Error saving file", str(e))
 

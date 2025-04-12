@@ -128,6 +128,11 @@ void setSyncParameters(HWTimers* htimers, float frequency, float dutyCycle,
         newSyncTime = requestSyncTime;
     }
 
+    // Restart the SYNC state.
+    currentSyncState = 0xFF;
+    syncPulseCount = 0;
+    lastSyncMeasured = 0;
+    lastSyncIdeal = 0;
 }
 
 void startHWTimers(HWTimers* htimers) {
@@ -207,15 +212,16 @@ void getChannelFrequencyAndDutyCycle(HWTimerChannel* hwTimer,
             if(hwTimer->data.len == 0) break;
         }
 
+        int64_t delta = time - previousRisingTime;
         if(isRising) {
             if(!firstRising) {
-                periodSum += time - previousRisingTime;
+                periodSum += delta;
                 cycleCount++;
             }
             previousRisingTime = time;
             firstRising = 0;
         }else {
-            risedTimeSum += time - previousRisingTime;
+            risedTimeSum += delta;
         }
     }
 

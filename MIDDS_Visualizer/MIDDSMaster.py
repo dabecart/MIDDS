@@ -65,7 +65,7 @@ class MIDDSMaster:
         if self.ser is not None:
             self.ser.write(b"$DISC")
             time.sleep(0.1)
-            print(self.ser.readline())
+            print(self.ser.read(self.ser.in_waiting))
 
             self.ser.close()
             self.ser = None
@@ -77,7 +77,7 @@ class MIDDSMaster:
 
         try:
             self.ser = serial.Serial(port = self.config['ProgramConfig']['SERIAL_PORT'], 
-                                     baudrate = 10000000, timeout=0.001)
+                                     baudrate = 4000000)
         except Exception as e:
             self.ser = None
             self.events.deviceConnected = False
@@ -91,7 +91,7 @@ class MIDDSMaster:
         time.sleep(0.1)
 
         # Read the connected to PROTO MIDDS message.
-        print(self.ser.readline())
+        print(self.ser.read(self.ser.in_waiting))
 
         self.events.deviceConnected = True
 
@@ -123,7 +123,7 @@ class MIDDSMaster:
         if not self.events.stopRecording.is_set(): return
 
         self.events.recording = False
-        self.events.raiseMessage("Stopped recording", f"The recording is saved in '{self.decoderMIDDS.recordingFileName}'.")
+        self.events.raiseMessage("Stopped recording", f"The recording was saved in '{self.decoderMIDDS.recordingFileName}'.")
         self.events.stopRecording.clear()
 
     def handleSendCommandToMIDDSEvent(self):
@@ -138,7 +138,10 @@ class MIDDSMaster:
         if self.ser is None: return
 
         try:
-            while True:
+            # This counter is used so that if there are a lot messages, the rest of the handlers do
+            # not starve.
+            msgsInThisIteration: int = 0
+            while msgsInThisIteration < 100:
                 newMsg = self.decoderMIDDS.decodeMessage(self.ser.read(self.ser.in_waiting),
                                                          self.events.recording)
                 if newMsg is None:
@@ -146,12 +149,16 @@ class MIDDSMaster:
 
                 if 'channel' in newMsg:
                     self.lock.acquire()
-                    ch = self.config.getChannel(newMsg['channel'])
-                    if ch is not None:
-                        ch.updateValues(newMsg)
-                    self.lock.release()
+                    try:
+                        ch = self.config.getChannel(newMsg['channel'])
+                        if ch is not None:
+                            ch.updateValues(newMsg)
+                    finally:
+                        self.lock.release()
                 else:
                     print(newMsg)
+
+                msgsInThisIteration += 1
 
             # Generate the recurring messages with the UPDATE_TIME from the ProgramConfiguration.
             if (time.perf_counter() - self.events.lastCommandRequest) > float(self.config['ProgramConfig']['UPDATE_TIME_s']):
@@ -182,9 +189,10 @@ class MIDDSMaster:
 
                 self.handleStartRecordingEvent()
 
-                self.handleSendCommandToMIDDSEvent()
+                if self.events.deviceConnected:
+                    self.handleSendCommandToMIDDSEvent()
 
-                self.communicationsHandling()
+                    self.communicationsHandling()
 
                 # Some time is needed to be left for the server to be updated.
                 time.sleep(5e-3)

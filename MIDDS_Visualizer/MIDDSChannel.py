@@ -160,6 +160,11 @@ class MIDDSChannel:
                 return
 
             self.samples.extend(readSamples)
+            # if len(self.freqsUpdates) > 0 and len(self.samples) > 0:
+            #     dt = datetime.fromtimestamp((self.samples[-1] >> 1) / 1e9) - self.freqsUpdates[-1]
+            #     if dt.total_seconds() < MIDDSChannel.MIN_TIME_BETWEEN_PLOT_MEAS_s:
+            #         return
+                
             self.calculateChannelFrequencyFromTimestamps()
             self.calculateDeltas(readSamples)
 
@@ -191,6 +196,12 @@ class MIDDSChannel:
                 # Last sample was falling. 
                 self._fallingDelta = self.deltas[-2][0]
                 self._risingDelta = self.deltas[-1][0]
+
+            # self.setFrequencyAndDutyCycle(
+            #     freq = 1.0/(self._risingDelta + self._fallingDelta),
+            #     dutyCycle = self._risingDelta/(self._risingDelta + self._fallingDelta)*100.0,
+            #     time = datetime.fromtimestamp((self.lastSampleForDelta >> 1) / 1e9)
+            # )
         elif self.mode == "MR":
             self._risingDelta = self.deltas[-1][0]
             self._fallingDelta = -1.0
@@ -210,23 +221,43 @@ class MIDDSChannel:
         periodSum_ns: float = 0.0
         risedTimeSum_ns: float = 0.0
         cycleCount: int = 0
-        previousRisingTime_ns: int
+        previousRisingTime_ns: int = 0
+
+        lastWasRising = False
         for i, sample in enumerate(sampleList):
             isRising:       bool = (sample & 0x01) == 1
             timestamp_ns:   int  = sample >> 1
 
             if not isRising:
-                if firstRising: continue
-                if i == (len(sampleList) - 1): break
+                # Continue until a rising edge is found.
+                if firstRising: 
+                    continue
+
+                # Break the loop if the last edge is a falling edge. The calculations must end on a 
+                # rising edge.
+                if i == (len(sampleList) - 1): 
+                    break
 
             if isRising:
+                currentDelta = timestamp_ns - previousRisingTime_ns
                 if not firstRising:
-                    periodSum_ns += timestamp_ns - previousRisingTime_ns
+                    periodSum_ns += currentDelta
                     cycleCount += 1
                 previousRisingTime_ns = timestamp_ns
                 firstRising = False
+
+                if lastWasRising: 
+                    print(f"Freq error H Ch {self.number}")
+                    self.samples.clear()
+                    return
+                lastWasRising = True
             else:
                 risedTimeSum_ns += timestamp_ns - previousRisingTime_ns
+                if not lastWasRising: 
+                    print(f"Freq Error L Ch {self.number}")
+                    self.samples.clear()
+                    return
+                lastWasRising = False
 
         if cycleCount > 0:
             # Set the frequency, duty cycle and time. Time will be the last time of the timestamp.
