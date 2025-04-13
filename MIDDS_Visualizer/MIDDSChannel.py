@@ -259,7 +259,7 @@ class MIDDSChannel:
                     return
                 lastWasRising = False
 
-        if cycleCount > 0:
+        if cycleCount > 0 and periodSum_ns > 0:
             # Set the frequency, duty cycle and time. Time will be the last time of the timestamp.
             dutyCycle = -1.0
             if self.mode == "MB":

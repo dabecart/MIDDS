@@ -31,12 +31,11 @@ void empty_cb(CircularBuffer* pCB) {
 }
 
 uint8_t push_cb(CircularBuffer* pCB, uint8_t ucItem) {
-    if(pCB->len >= pCB->size){
-    	return 0;
-    }
+    if(pCB->len >= pCB->size) return 0;
 
     pCB->data[pCB->head] = ucItem;
-    pCB->head = (pCB->head + 1) % pCB->size;
+    pCB->head++;
+    if(pCB->head >= pCB->size) pCB->head = 0;
     pCB->len++; 
     return 1;
 }
@@ -44,9 +43,7 @@ uint8_t push_cb(CircularBuffer* pCB, uint8_t ucItem) {
 uint8_t pushN_cb(CircularBuffer* pCB, uint8_t* items, uint32_t count) {
     if(items == NULL) return 0;
 
-    if((pCB->len + count) > pCB->size){
-    	return 0;
-    }
+    if((pCB->len + count) > pCB->size) return 0;
     
     uint32_t ullNextHead = pCB->head + count;
     if(ullNextHead > pCB->size) {
@@ -66,7 +63,8 @@ uint8_t pop_cb(CircularBuffer* pCB, uint8_t* item) {
     if(pCB->len < 1) return 0;
 
     *item = pCB->data[pCB->tail];
-    pCB->tail = (pCB->tail + 1) % pCB->size;
+    pCB->tail++;
+    if(pCB->tail >= pCB->size) pCB->tail = 0;
     pCB->len--;
     return 1;
 }
@@ -114,26 +112,27 @@ uint8_t peekN_cb(CircularBuffer* pCB, uint32_t count, uint8_t* items) {
     return 1;
 }
 
-uint8_t updateIndices(CircularBuffer* pCB, uint32_t ullNewHeadIndex)
-{
-    uint32_t ullReadBytes = 0;
-    if(ullNewHeadIndex >= pCB->head) {
-        ullReadBytes = ullNewHeadIndex - pCB->head;
-    }else {
-        ullReadBytes = ullNewHeadIndex + pCB->size - pCB->head;
-    }
+// Useful for DMA circular buffers.
+// uint8_t updateIndices(CircularBuffer* pCB, uint32_t ullNewHeadIndex)
+// {
+//     uint32_t ullReadBytes = 0;
+//     if(ullNewHeadIndex >= pCB->head) {
+//         ullReadBytes = ullNewHeadIndex - pCB->head;
+//     }else {
+//         ullReadBytes = ullNewHeadIndex + pCB->size - pCB->head;
+//     }
 
-    // Is data being overwritten without being processed? 
-    if((ullReadBytes + pCB->len) > pCB->size) {
-        // Update the tail index too.
-        pCB->tail += ullReadBytes - pCB->len;
-        pCB->tail %= pCB->size;
-        pCB->len = pCB->size;
-    }else {
-        pCB->len += ullReadBytes;
-    }
+//     // Is data being overwritten without being processed? 
+//     if((ullReadBytes + pCB->len) > pCB->size) {
+//         // Update the tail index too.
+//         pCB->tail += ullReadBytes - pCB->len;
+//         pCB->tail %= pCB->size;
+//         pCB->len = pCB->size;
+//     }else {
+//         pCB->len += ullReadBytes;
+//     }
 
-    pCB->head = ullNewHeadIndex;
+//     pCB->head = ullNewHeadIndex;
 
-    return 1;
-}
+//     return 1;
+// }

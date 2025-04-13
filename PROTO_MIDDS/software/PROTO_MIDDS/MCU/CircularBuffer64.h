@@ -16,7 +16,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#define CIRCULAR_BUFFER_64_MAX_SIZE 120
+#define CIRCULAR_BUFFER_64_MAX_SIZE 200
 
 typedef struct 
 {

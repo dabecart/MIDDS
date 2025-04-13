@@ -195,58 +195,50 @@ uint16_t encodeMonitor(HWTimerChannel* hwTimer, uint8_t* outBuffer, const uint16
         return 0;
     } 
 
-    uint32_t currentMessages = hwTimer->data.len;   // Make it constant at this point.
-    if(currentMessages > COMMS_MAX_TIMESTAMPS_IN_MONITOR){
-        currentMessages = COMMS_MAX_TIMESTAMPS_IN_MONITOR;
+    uint16_t messageCount = hwTimer->data.len;   // Make it constant at this point.
+    if(messageCount > COMMS_MAX_TIMESTAMPS_IN_MONITOR) {
+        messageCount = COMMS_MAX_TIMESTAMPS_IN_MONITOR;
     }
 
+    uint16_t maxMessageCount = (maxMsgLen - COMMS_MSG_MONITOR_HEADER_LEN)/COMMS_MONITOR_TIMESTAMP_LEN;
+    if(messageCount > maxMessageCount) {
+        messageCount = maxMessageCount;
+    }
+    
     // To make the pop_cb64, this header must be a multiple of eight bytes long (in binary output 
     // mode at least).
-    // The header is 8 bytes long, but the number of messages is written at the end of the loop.
-    uint32_t msgSize = COMMS_MSG_MONITOR_HEADER_LEN;
-    uint32_t numberOfMsgs;
+    uint16_t msgSize = COMMS_MSG_MONITOR_HEADER_LEN;
+    sprintf((char*) outBuffer, "%c%s%02d%04d", 
+            COMMS_MSG_SYNC, COMMS_MSG_MONITOR_HEAD, hwTimer->channelNumber, messageCount);
 
 #if MCU_TX_IN_ASCII
     uint64_t readVal;
-    for(numberOfMsgs = 0; 
-        (numberOfMsgs < currentMessages) && ((maxMsgLen - msgSize) > 16);
-        numberOfMsgs++) {
+    for(uint8_t countIndex = 0; countIndex < messageCount; countIndex++) {
         pop_cb64(&hwTimer->data, &readVal);
         msgSize += snprintf64Hex(
                         outBuffer + msgSize, 
                         maxMsgLen - msgSize,
                         readVal
                     );
+        if((maxMsgLen - msgSize) <= 16) {
+            break;
+        }
     }
     msgSize += snprintf(outBuffer + msgSize, maxMsgLen-msgSize, "\n");
 #else
     uint64_t readVal;
-    static uint64_t previousReadVal;
-    for(numberOfMsgs = 0; 
-        (numberOfMsgs < currentMessages) && ((maxMsgLen - msgSize) > sizeof(uint64_t)); 
-        numberOfMsgs++) {
+    for(uint32_t countIndex = 0; countIndex < messageCount; countIndex++) {
         pop_cb64(&hwTimer->data, &readVal);
 
         // The LSB is the value of the channel (HIGH or LOW). The rest is the timestamp in internal 
         // time. Convert to UNIX time the timestamp, shift it to the left one bit and add the value
         // of the channel.
         readVal = (convertFromInternalToUNIXTime(readVal >> 1) << 1) | (readVal & 0x01ULL);
-        if(previousReadVal > readVal){
-            readVal *= 1;
-        }
-        if((previousReadVal&0x01) == (readVal&0x01)){
-            readVal *= 1;
-        }
-        previousReadVal = readVal;
 
-        memcpy(outBuffer + msgSize, &readVal, sizeof(uint64_t));
-        msgSize += sizeof(uint64_t);
+        memcpy(outBuffer + msgSize, &readVal, COMMS_MONITOR_TIMESTAMP_LEN);
+        msgSize += COMMS_MONITOR_TIMESTAMP_LEN;
     }
 #endif
-
-    // Add the header now.
-    sprintf((char*) outBuffer, "%c%s%02d%04ld", 
-            COMMS_MSG_SYNC, COMMS_MSG_MONITOR_HEAD, hwTimer->channelNumber, numberOfMsgs);
 
     hwTimer->lastPrintTick = HAL_GetTick();
     return msgSize;
@@ -598,7 +590,6 @@ void establishConnection(uint8_t connect) {
 
         ch->mode = CHANNEL_DISABLED;
         applyChannelConfiguration(ch);
-
     }
     setShiftRegisterValues(&chCtrl);
 }
