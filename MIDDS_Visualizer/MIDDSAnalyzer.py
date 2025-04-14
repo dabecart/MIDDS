@@ -5,6 +5,7 @@ import os
 from collections import defaultdict
 import numpy as np
 from numba import njit
+from datetime import datetime
 
 class MIDDSAnalyzer:
     def __init__(self, fileRoute: str):
@@ -28,28 +29,44 @@ class MIDDSAnalyzer:
         for ch in monitorPerChannel:
             print(f"Channel {ch}: size {len(monitorPerChannel[ch])}")
             monitorData = np.array(monitorPerChannel[ch], dtype=np.uint64)
-            edgeTimestamps_ns, edges, periods, periodsTime, highDeltas, highDeltasTime, lowDeltas, lowDeltasTime = self.calculateChannelPeriods_(monitorData)
+            edgeTimestamps_ns, edges, deltas, deltasTime, periods, periodsTime, \
+            highDeltas, highDeltasTime, lowDeltas, lowDeltasTime = \
+                self.calculateChannelPeriods_(monitorData)
+            
             frequencies = self.calculateFrequencies_(periods)
             if not np.all(edgeTimestamps_ns[1:] >= edgeTimestamps_ns[:-1]):
                 print("shit")
                 
+            deltaTime = self.fromTimestampToDatetime(deltasTime)
+            edgeTimestamps = self.fromTimestampToDatetime(edgeTimestamps_ns)
+            periodTime = self.fromTimestampToDatetime(periodsTime)
+            highDeltaTime = self.fromTimestampToDatetime(highDeltasTime)
+            lowDeltaTime = self.fromTimestampToDatetime(lowDeltasTime)
+            
             self.data[ch] = {
-                "timestamp":        edgeTimestamps_ns,
+                "timestamp":        edgeTimestamps,
                 "edge":             edges,
+                "delta":            deltas,
+                "deltaTime":        deltaTime,
                 "period":           periods,
-                "periodTime":       periodsTime,
+                "periodTime":       periodTime,
                 "highDelta":        highDeltas,
-                "highDeltaTime":    highDeltasTime,
+                "highDeltaTime":    highDeltaTime,
                 "lowDelta":         lowDeltas,
-                "lowDeltaTime":     lowDeltasTime,
+                "lowDeltaTime":     lowDeltaTime,
                 "frequency":        frequencies,
-                "frequencyTime":    periodsTime
+                "frequencyTime":    periodTime
             }
+
+    @staticmethod
+    def fromTimestampToDatetime(times_ns: np.ndarray) -> list:
+        return [datetime.fromtimestamp(t / 1e9) for t in times_ns]
 
     @staticmethod
     @njit
     def calculateFrequencies_(periods: np.ndarray):
-        return np.float64(1.0) / periods.astype(np.float64)
+        # Converts from nanoseconds to Hertz.
+        return np.float64(1e9) / periods.astype(np.float64)
 
     @staticmethod
     @njit
@@ -60,6 +77,9 @@ class MIDDSAnalyzer:
         edges               = np.zeros(len(monitorEdges), dtype=np.bool)
 
         # Periods (Y axis) and periodsTime (X axis).
+        deltas         = np.zeros(len(monitorEdges), dtype=np.uint64)
+        deltasTime     = np.zeros(len(monitorEdges), dtype=np.uint64)
+
         periods         = np.zeros(len(monitorEdges), dtype=np.uint64)
         periodsTime     = np.zeros(len(monitorEdges), dtype=np.uint64)
 
@@ -69,9 +89,10 @@ class MIDDSAnalyzer:
         lowDeltas       = np.zeros(len(monitorEdges), dtype=np.uint64)
         lowDeltasTime   = np.zeros(len(monitorEdges), dtype=np.uint64)
 
+        deltasIndex     = 0
         periodsIndex    = 0
         highDeltasIndex = 0
-        lowDeltasIndex  = 0        
+        lowDeltasIndex  = 0
 
         for i, sample in enumerate(monitorEdges):
             edgeTimestamps_ns[i] = sample >> 1
@@ -80,6 +101,11 @@ class MIDDSAnalyzer:
             if i < 1: continue
 
             delta = edgeTimestamps_ns[i] - edgeTimestamps_ns[i-1]
+
+            deltas[deltasIndex]     = delta
+            deltasTime[deltasIndex] = edgeTimestamps_ns[i]
+            deltasIndex += 1
+
             if edges[i] == edges[i-1]:
                 # This is the period.
                 periods[periodsIndex] = delta
@@ -98,11 +124,15 @@ class MIDDSAnalyzer:
                     highDeltasIndex += 1
                 
                 # Periods get calculated by the sum of the two previous edges.
-                periods[periodsIndex] = highDeltas[highDeltasIndex-1] + lowDeltas[lowDeltasIndex-1]
-                periodsTime[periodsIndex] = edgeTimestamps_ns[i]
-                periodsIndex += 1
+                if highDeltasIndex > 0 and lowDeltasIndex > 0:
+                    periods[periodsIndex] = highDeltas[highDeltasIndex-1] + lowDeltas[lowDeltasIndex-1]
+                    periodsTime[periodsIndex] = edgeTimestamps_ns[i]
+                    periodsIndex += 1
 
         # Trim the arrays.
+        deltas          = deltas[:deltasIndex]
+        deltasTime      = deltasTime[:deltasIndex]
+
         periods         = periods[:periodsIndex]
         periodsTime     = periodsTime[:periodsIndex]
 
@@ -112,7 +142,8 @@ class MIDDSAnalyzer:
         lowDeltas       = lowDeltas[:lowDeltasIndex]
         lowDeltasTime   = lowDeltasTime[:lowDeltasIndex]
 
-        return edgeTimestamps_ns, edges, periods, periodsTime, highDeltas, highDeltasTime, lowDeltas, lowDeltasTime
+        return edgeTimestamps_ns, edges, deltas, deltasTime, periods, periodsTime, \
+               highDeltas, highDeltasTime, lowDeltas, lowDeltasTime
 
     def getFileName(self):
         return os.path.basename(self.fileRoute)

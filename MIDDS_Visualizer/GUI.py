@@ -4,7 +4,7 @@ from dash.exceptions import PreventUpdate
 from dash.dependencies import Input, Output, State
 import plotly.graph_objs as go
 # Make data plots automatically select the number of points depending on the zoom.
-from plotly_resampler import FigureResampler, FigureWidgetResampler
+from plotly_resampler import FigureResampler
 
 import tkinter as tk
 from tkinter import filedialog
@@ -55,6 +55,7 @@ class GUI:
         # Initial figure.
         self.frequencyFig = go.Figure()
         self.frequencyFig.update_layout(
+            template='plotly_dark',
             xaxis=dict(
                 # title = 'Time',
                 tickformat = '%H:%M:%S',
@@ -65,7 +66,6 @@ class GUI:
                 autorange = True
             ),
             
-            template='plotly_dark',
             margin=dict(l=10, r=10, t=5, b=20),
             showlegend=True,
             paper_bgcolor='rgba(0,0,0,0)',
@@ -112,22 +112,7 @@ class GUI:
             plot_bgcolor='rgba(0,0,0,0)',
         )
 
-        self.analFieldPlot = FigureResampler(go.Figure())
-        self.analFieldPlot.update_layout(
-            xaxis=dict(
-                autorange = True
-            ),
-            yaxis=dict(
-                title = 'Period (ns)',
-                autorange = True
-            ),
-            
-            template='plotly_dark',
-            margin=dict(l=10, r=10, t=5, b=20),
-            showlegend=True,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-        )
+        self.analFieldPlot = self.generateAnalyzeDataGraph(self.analyzerMIDDS, "delta")
 
         # App layout
         self.app.layout = html.Div([
@@ -326,13 +311,14 @@ class GUI:
                         dcc.Dropdown(
                             id="field-plot-dropdown", 
                             options=[
-                                {"label": "Periods",                "value": "periods"},
+                                {"label": "Deltas",                 "value": "delta"},
+                                {"label": "Periods",                "value": "period"},
                                 {"label": "Frequencies",            "value": "frequency"},
                                 {"label": "Duty cycles",            "value": "dutyCycle"}, 
                                 {"label": "High deltas",            "value": "highDelta"},
                                 {"label": "Low deltas",             "value": "lowDelta"},
                             ], 
-                            value="frequency",
+                            value="delta",
                             clearable=False,
                             disabled=True
                         ),
@@ -443,7 +429,8 @@ class GUI:
             self.currentScreen = dataScreen
 
             if self.currentScreen == "main":
-                iconSrc = "assets/icons/main.svg"
+                # Put the opposite icon to switch to that screen.
+                iconSrc = "assets/icons/analyzer.svg"
                 if "initialHidden" not in analContentClass:
                     analContentClass += " initialHidden"
                 if "initialHidden" not in analSidebarClass:
@@ -460,7 +447,8 @@ class GUI:
                     saveFile += " initialHidden"
 
             elif self.currentScreen == "anal":
-                iconSrc = "assets/icons/analyzer.svg"
+                # Put the opposite icon to switch to that screen.
+                iconSrc = "assets/icons/main.svg"
                 if "initialHidden" not in mainContentClass:
                     mainContentClass += " initialHidden"
                 if "initialHidden" not in mainSidebarClass:
@@ -625,8 +613,8 @@ class GUI:
 
             # Disable signal type if the channel is set as disabled.
             signalOptions = [
-                {"label": "TTL",    "value": "T", "disabled": mode=="DS"},
-                {"label": "LVDS",   "value": "L", "disabled": mode=="DS"},
+                {"label": "TTL",    "value": "T", "disabled": selChannel.mode=="DS"},
+                {"label": "LVDS",   "value": "L", "disabled": selChannel.mode=="DS"},
             ]
 
             return returnName, returnMode, returnSignal, signalOptions, applyConfigClassName
@@ -1194,9 +1182,7 @@ class GUI:
                 self.events.raiseError("Error opening file", str(e))
                 return no_update
 
-            raise PreventUpdate
-
-            self.udpdateAnalyzedDataOnGraph(self.analFieldPlot, self.analyzerMIDDS, fieldToPlot)
+            self.analFieldPlot = self.generateAnalyzeDataGraph(self.analyzerMIDDS, fieldToPlot)
 
             # Enable the field-plot-dropdown.
             return self.analFieldPlot, False
@@ -1207,14 +1193,13 @@ class GUI:
             prevent_initial_call=True
         )
         def updateFieldPlot(fieldToPlot: str):
-            raise PreventUpdate
             if fieldToPlot is None or self.analyzerMIDDS is None:
                 raise PreventUpdate
 
-            self.udpdateAnalyzedDataOnGraph(self.analFieldPlot, self.analyzerMIDDS, fieldToPlot)
+            self.analFieldPlot = self.generateAnalyzeDataGraph(self.analyzerMIDDS, fieldToPlot)
 
             # Enable the field-plot-dropdown.
-            return self.analFieldPlot, False
+            return self.analFieldPlot
 
         @self.app.callback(
             Input('save-file', 'n_clicks'),
@@ -1329,9 +1314,45 @@ class GUI:
         return False
     
     @staticmethod
-    def udpdateAnalyzedDataOnGraph(figure: go.Figure, analyzer: MIDDSAnalyzer, fieldToPlot: str):
-        # Remove all traces from the graph (if any).
-        figure['data'] = tuple()
+    def generateAnalyzeDataGraph(analyzer: MIDDSAnalyzer|None, fieldToPlot: str) -> FigureResampler:
+        if fieldToPlot == "timestamp":
+            yAxisLabel = "Timestamp (ns)"
+        elif fieldToPlot == "delta":
+            yAxisLabel = "Time deltas (ns)"
+        elif fieldToPlot == "period":
+            yAxisLabel = "Period (ns)"
+        elif fieldToPlot == "highDelta":
+            yAxisLabel = "High deltas (ns)"
+        elif fieldToPlot == "lowDelta":
+            yAxisLabel = "Low deltas (ns)"
+        elif fieldToPlot == "frequency":
+            yAxisLabel = "Frequency (Hz)"
+        else:
+            yAxisLabel = "Missing field name"
+
+        figure = FigureResampler(go.Figure())
+        figure.update_layout(
+            xaxis=dict(
+                autorange = True
+            ),
+            yaxis=dict(
+                title = yAxisLabel,
+                autorange = True
+            ),
+            legend=dict(
+                y=0.95,
+            ),
+
+            template='plotly_dark',
+            margin=dict(l=10, r=10, t=5, b=20),
+            showlegend=True,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+        )
+
+        if analyzer is None:
+            # Return empty figure.
+            return figure
 
         for ch in analyzer.data.keys():
             data = analyzer.data[ch]
@@ -1348,3 +1369,5 @@ class GUI:
                             opacity=0.7),
                 name=f'Ch. {ch:02}'
             ))
+
+        return figure
