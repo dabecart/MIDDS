@@ -282,6 +282,7 @@ hr {
     flex-direction: column;
     padding: 50px 10px 40px 10px;
     transition: padding 0.3s ease-in-out;
+    overflow: auto;
 }
 
 .main-content.sidebar-open {

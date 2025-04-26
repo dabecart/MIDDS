@@ -23,6 +23,8 @@
 #define COMMS_MSG_MONITOR_HEADER_LEN 8
 #define COMMS_MSG_CHANNEL_SETT_LEN   8
 #define COMMS_MSG_SYNC_SETT_LEN      29
+#define COMMS_MSG_CONN_LEN           5
+#define COMMS_MSG_DISC_LEN           5
 
 #define COMMS_MIN_MSG_LEN            5 // $CONN or $DISC
 #define COMMS_MAX_MSG_INPUT_LEN      COMMS_MSG_SYNC_SETT_LEN

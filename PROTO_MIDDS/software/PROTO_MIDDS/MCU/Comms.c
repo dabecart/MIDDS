@@ -28,7 +28,7 @@ void initComms() {
 }
 
 void receiveData() {
-    static uint8_t inMsgBuffer[COMMS_MAX_MSG_INPUT_LEN];
+    static uint8_t inMsgBuffer[CIRCULAR_BUFFER_MAX_SIZE];
     uint8_t peekChar;
 
     while(inputBuffer.len > 0) {
@@ -168,8 +168,10 @@ int32_t decodeGPIOMessage(const uint8_t* dataBuffer, const uint32_t dataLen) {
         messageLen = COMMS_MSG_SYNC_SETT_LEN;
         executeSyncSettingsCommand(&temp);
     }else if(strncmp(messageID, COMMS_MSG_CONNECT_HEAD, strlen(COMMS_MSG_CONNECT_HEAD)) == 0) {
+        messageLen = COMMS_MSG_CONN_LEN;
         establishConnection(1);
     }else if(strncmp(messageID, COMMS_MSG_DISCONNECT_HEAD, strlen(COMMS_MSG_DISCONNECT_HEAD)) == 0) {
+        messageLen = COMMS_MSG_DISC_LEN;
         establishConnection(0);
     }else {
         return COMMS_DECODE_SYNC_SEQUENCE_NOK;
