@@ -274,7 +274,7 @@ uint8_t decodeInput(const uint8_t* dataBuffer, ChannelInput *decodedMsg) {
     if((dataBuffer == NULL) || (decodedMsg == NULL)) return 0;
 
     decodedMsg->command = COMMS_MSG_INPUT_HEAD[0];
-    sscanf((char*) dataBuffer + 2, "%2ld", &decodedMsg->channel);
+    decodedMsg->channel = getChannelNumberFromBuffer(dataBuffer + 2);
     memcpy(&decodedMsg->time, dataBuffer + 5, sizeof(decodedMsg->time));
     return 1;
 }
@@ -283,7 +283,8 @@ uint8_t decodeOutput(const uint8_t* dataBuffer, ChannelOutput *decodedMsg) {
     if((dataBuffer == NULL) || (decodedMsg == NULL)) return 0;
 
     decodedMsg->command = COMMS_MSG_OUTPUT_HEAD[0];
-    sscanf((char*) dataBuffer + 2, "%2ld%c", &decodedMsg->channel, (char*) &decodedMsg->value);
+    decodedMsg->channel = getChannelNumberFromBuffer(dataBuffer + 2);
+    decodedMsg->value = dataBuffer[4];
     memcpy(&decodedMsg->time, dataBuffer + 5, sizeof(decodedMsg->time));
     return 1;
 }
@@ -292,7 +293,7 @@ uint8_t decodeFrequency(const uint8_t* dataBuffer, ChannelFrequency *decodedMsg)
     if((dataBuffer == NULL) || (decodedMsg == NULL)) return 0;
 
     decodedMsg->command = COMMS_MSG_FREQ_HEAD[0];
-    sscanf((char*) dataBuffer + 2, "%2ld", &decodedMsg->channel);
+    decodedMsg->channel = getChannelNumberFromBuffer(dataBuffer + 2);
     memcpy(&decodedMsg->time, dataBuffer + 12, sizeof(decodedMsg->time));
     return 1;
 }
@@ -302,7 +303,7 @@ uint8_t decodeSettingsChannel(const uint8_t* dataBuffer, ChannelSettingsChannel 
 
     decodedMsg->command     = COMMS_MSG_CHANNEL_SETT_HEAD[0];
     decodedMsg->subCommand  = COMMS_MSG_CHANNEL_SETT_HEAD[1];
-    sscanf((char*) dataBuffer + 3, "%2ld", &decodedMsg->channel);
+    decodedMsg->channel = getChannelNumberFromBuffer(dataBuffer + 3);
     
     const char* modeIdentifier = (char*) (dataBuffer + 5);
     if(strncmp(modeIdentifier, COMMS_SETT_CH_INPUT, strlen(COMMS_SETT_CH_INPUT)) == 0) {
@@ -347,7 +348,7 @@ uint8_t decodeSettingsSync(const uint8_t* dataBuffer, ChannelSettingsSYNC *decod
 
     decodedMsg->command     = COMMS_MSG_SYNC_SETT_HEAD[0];
     decodedMsg->subCommand  = COMMS_MSG_SYNC_SETT_HEAD[1];
-    sscanf((char*) dataBuffer + 3, "%2ld", &decodedMsg->channel);
+    decodedMsg->channel = getChannelNumberFromBuffer(dataBuffer + 3);
     
     memcpy(&decodedMsg->frequency, dataBuffer + 5, sizeof(decodedMsg->frequency));
     if((decodedMsg->frequency < COMMS_SYNC_MIN_FREQ) || 
@@ -604,4 +605,13 @@ uint64_t convertFromInternalToUNIXTime(uint64_t tIn) {
 uint64_t convertFromUNIXTimeToInternal(uint64_t tEx) {
     const double outToInFactor = ((double) MCU_FREQUENCY) / 1e9;
     return tEx * outToInFactor;
+}
+
+uint32_t getChannelNumberFromBuffer(uint8_t* buf) {
+    uint32_t ch = 0;
+    if(buf[0] == '-') {
+        return -(buf[1] - '0');
+    }else {
+        return (buf[0] - '0')*10 + (buf[1] - '0');
+    }
 }
