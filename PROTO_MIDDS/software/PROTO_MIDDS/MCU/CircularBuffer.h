@@ -101,6 +101,6 @@ uint8_t peekN_cb(CircularBuffer* pCB, uint32_t count, uint8_t* items);
  * @param ullNewHeadIndex. The head index returned by the callback.
  * @return 1 if the update was OK. 
 ***************************************************************************************************/
-uint8_t updateIndices(CircularBuffer* pCB, uint32_t ullNewHeadIndex);
+// uint8_t updateIndices(CircularBuffer* pCB, uint32_t ullNewHeadIndex);
 
 #endif // CIRCULAR_BUFFER_h

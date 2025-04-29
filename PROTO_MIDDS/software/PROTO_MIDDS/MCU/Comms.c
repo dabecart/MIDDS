@@ -28,13 +28,23 @@ void initComms() {
 }
 
 void receiveData() {
-    static uint8_t inMsgBuffer[CIRCULAR_BUFFER_MAX_SIZE];
+    static uint8_t inMsgBuffer[COMMS_MAX_MSG_INPUT_LEN];
     uint8_t peekChar;
 
     while(inputBuffer.len > 0) {
         peek_cb(&inputBuffer, &peekChar);
         if(peekChar == COMMS_MSG_SYNC) {
-            peekN_cb(&inputBuffer, inputBuffer.len, inMsgBuffer);
+            // It's important to save the length of the input buffer as inputBuffer will be
+            // modified by the ISR raised by the USB. If the ISR is raised just after 
+            // entering the if statement below, it will write to inMsgBuffer much more than
+            // it can handle, causing a memory overflow. 
+        	uint32_t inputLength = inputBuffer.len;
+            if(inputLength > COMMS_MAX_MSG_INPUT_LEN) {
+                peekN_cb(&inputBuffer, COMMS_MAX_MSG_INPUT_LEN, inMsgBuffer);
+            }else {
+                peekN_cb(&inputBuffer, inputLength, inMsgBuffer);
+            }
+            
             int32_t decodeReturn = decodeGPIOMessage(inMsgBuffer, inputBuffer.len);
             if(decodeReturn == COMMS_DECODE_NOT_ENOUGH_DATA) {
                 // Do not discard any data. Exit the function and come back later.
@@ -58,8 +68,9 @@ void receiveData() {
 }
 
 void sendData() {
-    static uint8_t outMsg[USB_MAX_DATA_PACKAGE_SIZE];
-    static uint16_t outMsgLen = 0;
+    // Use two buffers to send
+    static uint8_t outputMsgBuffer[USB_MAX_DATA_PACKAGE_SIZE];
+    static uint32_t outMsgLen = 0;
 
     if(!usbConnected) return;
 
@@ -68,11 +79,11 @@ void sendData() {
     if((outMsgLen == 0) && (outputBuffer.len > 0)) {
         outMsgLen = outputBuffer.len;
         if(outMsgLen > USB_MAX_DATA_PACKAGE_SIZE) outMsgLen = USB_MAX_DATA_PACKAGE_SIZE;
-        popN_cb(&outputBuffer, outMsgLen, outMsg);
+        if(!popN_cb(&outputBuffer, outMsgLen, outputMsgBuffer)) outMsgLen = 0;
     }
 
-    // CDC_Transmit_FS really transmits the message when it des not return USBD_BUSY. 
-    if((outMsgLen != 0) && (CDC_Transmit_FS(outMsg, outMsgLen) != USBD_BUSY)) {
+    // CDC_Transmit_FS really transmits the message when it return USBD_OK. 
+    if((outMsgLen != 0) && (CDC_Transmit_FS(outputMsgBuffer, outMsgLen) == USBD_OK)) {
         // When transmitted, set the output message length back to zero. 
         outMsgLen = 0;
     }
@@ -110,12 +121,11 @@ uint8_t encodeGPIOMessage(const ChannelMessageType msgType, const ChannelMessage
         }
     }
 
-    if((messageLen == 0) || (messageLen > maxLength)) {
+    // Push to the output buffer.
+    if((messageLen == 0) || (messageLen > maxLength) || 
+       !pushN_cb(&outputBuffer, outMsgBuffer, messageLen)) {
         return 0;
     }
-
-    // Push to the output buffer.
-    pushN_cb(&outputBuffer, outMsgBuffer, messageLen);
     return 1;
 }
 
@@ -504,7 +514,10 @@ uint8_t executeFrequencyCommand(const ChannelFrequency* cmdInput) {
     }
 
     cmdResponse.frequency.time = convertFromInternalToUNIXTime(getMIDDSTime(&hwTimers));
-    encodeGPIOMessage(GPIO_MSG_FREQUENCY, cmdResponse);
+    if(!encodeGPIOMessage(GPIO_MSG_FREQUENCY, cmdResponse)) {
+    	return 0;
+    }
+
     return 1;
 }
 
@@ -574,16 +587,12 @@ void sendErrorMessage(const char* errorMsg) {
 
 void establishConnection(uint8_t connect) {
     const char* WELCOME_MSG = "Connected to PROTO MIDDS v.0.1\n";
-    const char* DISCONNECTION_MSG = "Disconnected\n";
 
     usbConnected = connect;
     if(usbConnected) {
         // Transmit welcome message. 
         empty_cb(&outputBuffer);
         pushN_cb(&outputBuffer, (uint8_t*) WELCOME_MSG, strlen(WELCOME_MSG));
-    }else {
-        // Transmit disconnection message.
-        while(CDC_Transmit_FS((uint8_t*) DISCONNECTION_MSG, strlen(DISCONNECTION_MSG)) == USBD_BUSY){}
     }
 
     // Set all channels as disabled.
@@ -607,8 +616,7 @@ uint64_t convertFromUNIXTimeToInternal(uint64_t tEx) {
     return tEx * outToInFactor;
 }
 
-uint32_t getChannelNumberFromBuffer(uint8_t* buf) {
-    uint32_t ch = 0;
+uint32_t getChannelNumberFromBuffer(const uint8_t* buf) {
     if(buf[0] == '-') {
         return -(buf[1] - '0');
     }else {

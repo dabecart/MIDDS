@@ -212,6 +212,13 @@ uint64_t convertFromInternalToUNIXTime(uint64_t tIn);
  ***************************************************************************************************/
 uint64_t convertFromUNIXTimeToInternal(uint64_t tEx);
 
+/**************************************** FUNCTION *************************************************
+ * @brief Simple function to convert a two digit ASCII number to an uint32_t. 
+ * @param buf. Input data buffer.
+ * @return The channel number.
+ ***************************************************************************************************/
+uint32_t getChannelNumberFromBuffer(const uint8_t* buf);
+
 /**************************************** EXTERNALS ***********************************************/
 extern CircularBuffer inputBuffer;
 

@@ -62,7 +62,7 @@ void loopMCU() {
                 tempMsg.monitor = ch->data.timer.timerHandler;
                 encodeGPIOMessage(GPIO_MSG_MONITOR, tempMsg); 
             }else if(ch->type == CHANNEL_GPIO) {
-                // Not implemented.
+                // TODO: Not implemented.
                 continue;
             }
         }

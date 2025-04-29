@@ -37,6 +37,12 @@ typedef struct
 void init_cb64(CircularBuffer64* pCB, uint32_t bufferSize);
 
 /**************************************** FUNCTION *************************************************
+ * @brief Empties the content of a cb64.
+ * @param pCB. Pointer to the CircularBuffer64 struct.
+***************************************************************************************************/
+void empty_cb64(CircularBuffer64* pCB);
+
+/**************************************** FUNCTION *************************************************
  * @brief Pushes a single byte into a CircularBuffer64. Advances the tail index.
  * @param pCB. Pointer to the CircularBuffer64 struct.
  * @param item. Byte to be store into the buffer.
@@ -59,11 +65,5 @@ uint8_t pop_cb64(CircularBuffer64* pCB, uint64_t* item);
  * @return 1 if the read item is valid. 
 ***************************************************************************************************/
 uint8_t peek_cb64(CircularBuffer64* pCB, uint64_t* item);
-
-/**************************************** FUNCTION *************************************************
- * @brief Empties the content of a cb64.
- * @param pCB. Pointer to the CircularBuffer64 struct.
-***************************************************************************************************/
-void empty_cb64(CircularBuffer64* pCB);
 
 #endif // CIRCULAR_BUFFER_64_h
