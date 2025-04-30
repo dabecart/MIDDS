@@ -51,5 +51,6 @@
                 "CStyleComment",
             ]
         }
-    ]
+    ],
+    "cmake.ignoreCMakeListsMissing": true
 }

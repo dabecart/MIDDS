@@ -68,22 +68,24 @@ void receiveData() {
 }
 
 void sendData() {
-    // Use two buffers to send
-    static uint8_t outputMsgBuffer[USB_MAX_DATA_PACKAGE_SIZE];
     static uint32_t outMsgLen = 0;
 
-    if(!usbConnected) return;
+    if(!usbConnected) {
+        outMsgLen = 0;
+        empty_cb(&inputBuffer);
+        empty_cb(&outputBuffer);
+    }
 
     // If there's no pending message to send (outMsgLen == 0) and there's something saved to send
     // (outputBuffer.len > 0) calculate the number of bytes to send.
     if((outMsgLen == 0) && (outputBuffer.len > 0)) {
         outMsgLen = outputBuffer.len;
-        if(outMsgLen > USB_MAX_DATA_PACKAGE_SIZE) outMsgLen = USB_MAX_DATA_PACKAGE_SIZE;
-        if(!popN_cb(&outputBuffer, outMsgLen, outputMsgBuffer)) outMsgLen = 0;
+        if(outMsgLen > sizeof(UserTxBufferFS)) outMsgLen = sizeof(UserTxBufferFS);
+        if(!popN_cb(&outputBuffer, outMsgLen, UserTxBufferFS)) outMsgLen = 0;
     }
 
     // CDC_Transmit_FS really transmits the message when it return USBD_OK. 
-    if((outMsgLen != 0) && (CDC_Transmit_FS(outputMsgBuffer, outMsgLen) == USBD_OK)) {
+    if((outMsgLen != 0) && (CDC_Transmit_FS(UserTxBufferFS, outMsgLen) == USBD_OK)) {
         // When transmitted, set the output message length back to zero. 
         outMsgLen = 0;
     }
@@ -589,10 +591,17 @@ void establishConnection(uint8_t connect) {
     const char* WELCOME_MSG = "Connected to PROTO MIDDS v.0.1\n";
 
     usbConnected = connect;
+
+    empty_cb(&outputBuffer);
+
     if(usbConnected) {
         // Transmit welcome message. 
-        empty_cb(&outputBuffer);
         pushN_cb(&outputBuffer, (uint8_t*) WELCOME_MSG, strlen(WELCOME_MSG));
+    }
+    else
+    {
+        // Disconnected.
+        NVIC_SystemReset();
     }
 
     // Set all channels as disabled.

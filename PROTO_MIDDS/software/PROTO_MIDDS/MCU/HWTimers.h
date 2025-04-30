@@ -23,7 +23,7 @@
 
 #define HW_TIMER_CHANNEL_COUNT                  14
 #define HW_TIMER_GOOD_SYNCS_UNTIL_SYNCHRONIZED  3
-#define HW_TIMER_MIN_SAMPLES_NEEDED             10
+#define HW_TIMER_MIN_SAMPLES_NEEDED             4
 // From this value depends the minimum frequency that can be measured with MIDDS.
 #define HW_TIMER_TICKS_UNTIL_FREQ_RECALCULATE   30000 // ticks = ms
 

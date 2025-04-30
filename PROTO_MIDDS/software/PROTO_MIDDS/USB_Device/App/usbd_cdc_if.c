@@ -89,10 +89,8 @@
 /* It's up to user to redefine and/or remove those define */
 /** Received data over USB are stored in this buffer      */
 uint8_t UserRxBufferFS[APP_RX_DATA_SIZE];
-
 /** Data to send over USB CDC are stored in this buffer   */
 uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
-
 /* USER CODE BEGIN PRIVATE_VARIABLES */
 
 /* USER CODE END PRIVATE_VARIABLES */
@@ -294,9 +292,8 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
     // So that the loop from which this function is being called can continue.
     return USBD_OK;
   } 
-  memcpy(UserTxBufferFS, Buf, Len);
   
-  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, UserTxBufferFS, Len);
+  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, &Buf[0], Len);
   result = USBD_CDC_TransmitPacket(&hUsbDeviceFS);
   /* USER CODE END 7 */
   return result;

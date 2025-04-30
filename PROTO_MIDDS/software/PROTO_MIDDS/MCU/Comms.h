@@ -20,9 +20,6 @@
 #include "usb_device.h"
 #include "usbd_cdc_if.h"
 
-// Size of the USB messaging buffers. Currently set to the maximum allowed by the Circular Buffers.
-#define USB_MAX_DATA_PACKAGE_SIZE CIRCULAR_BUFFER_MAX_SIZE
-
 /**************************************** FUNCTION *************************************************
  * @brief Start the buffers for communication. 
 ***************************************************************************************************/
