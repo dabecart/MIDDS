@@ -283,7 +283,7 @@ class MIDDSParser:
     
     @staticmethod
     def decodeSettingsChannel(data: bytes):
-        _, _, _, channel, mode, signal, sync = struct.unpack('<ccc2s2s1s1s', data)
+        _, _, _, channel, mode, signal = struct.unpack('<ccc2s2s1s', data)
         return {
             "command":      MIDDSParser.COMMS_MSG_CHANNEL_SETT_HEAD,
             "channel":      int(channel.decode()),
