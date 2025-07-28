@@ -1,7 +1,7 @@
 <img src="media/SponsoredBanner.png" width="800"/>
 
 # MIDDS
-*Monitoring Interface of Digital and Differential Signals, by @dabecart.*
+*Monitoring Interface of Digital and Differential Signals. By @dabecart, 2025.*
 
 ✨ This project was sponsored by [**PCBWay**](#a-huge-thank-you-to-pcbway) ✨
 
@@ -32,19 +32,7 @@ Read more about it [here](/docs/README.md)! 💫
 
 <img src="media/photos/DashboardCapture.png" width="800"/>
 
-The **MIDDS Visualizer** is a graphic tool used to configure and visualize in real time the data sent by MIDDS. Learn more about it [here](/MIDDS_Visualizer/README.md).
-
-# Gallery
-
-<img src="media/photos/PROTO_MIDDS_0001.jpg" width="800"/>
-<img src="media/photos/PROTO_MIDDS_0002.jpg" width="800"/>
-<img src="media/photos/PROTO_MIDDS_0003.jpg" width="800"/>
-<img src="media/photos/PROTO_MIDDS_0004.jpg" width="800"/>
-<img src="media/photos/PROTO_MIDDS_0005.jpg" width="800"/>
-<img src="media/photos/PROTO_MIDDS_0006.jpg" width="800"/>
-<img src="media/photos/PROTO_MIDDS_0007.jpg" width="800"/>
-<img src="media/photos/PROTO_MIDDS_0008.jpg" width="800"/>
-<img src="media/photos/PROTO_MIDDS_0009.jpg" width="800"/>
+The **MIDDS Visualizer** is a graphic tool used to configure and visualize in real time the data sent by MIDDS. Learn more about it [here](https://github.com/dabecart/MIDDS-Visualizer).
 
 # A Huge Thank You to PCBWay! 
 
@@ -56,7 +44,7 @@ Here are just a few of the reasons why PCBWay stands out:
 
 ✅ Fast Turnaround: The whole ordering, manufacturing and shipping of 50 PCBs to Spain took around a week and a half, which is most impressing! 
 
-✅ Affordable Pricing: Their competitive rates make professional-grade PCBs accessible to everyone. To give you an example, an Avalanche Roll PCB's took less than $5 to build, that is five different PCBs and I'm also counting the shipping, amazing!
+✅ Affordable Pricing: Their competitive rates make professional-grade PCBs accessible to everyone.
 
 ✅ Excellent Support: From order placement to final delivery, PCBWay’s team was always there to answer my questions and provide guidance.
 

@@ -28,10 +28,29 @@
         "streambuf": "c",
         "functional": "c",
         "algorithm": "c",
-        "stm32g4xx_hal_tim.h": "c"
+        "stm32g4xx_hal_tim.h": "c",
+        "cstdint": "c"
     },
     "makefile.makefilePath": "Debug\\makefile",
     "cSpell.words": [
         "MIDDS"
-    ]
+    ],
+    "cSpell.languageSettings": [
+        {
+            "languageId": "python,cpp,c",
+            "includeRegExpList": [
+                "comments",
+                "strings",
+                "CStyleComment",
+                "string"
+            ]
+        },
+        {
+            "languageId": "jsonc", // (.json with comments) because most "commands" here are strings
+            "includeRegExpList": [
+                "CStyleComment",
+            ]
+        }
+    ],
+    "cmake.ignoreCMakeListsMissing": true
 }

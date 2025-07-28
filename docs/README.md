@@ -205,7 +205,7 @@ new line.
 |-----------------------|--------------------------|----------|-----------|-------------|
 | Start character       | `$`                      | `char`   | 1         | 0           |
 | Command descriptor    | `E`                      | `char`   | 1         | 1           |
-| Message               | ---                      | `char[]` | n < 64    | 2           |
+| Message               | ---                      | `char[]` | n $\le$ 64    | 2           |
 
 ### Connect (`CONN`)
 
