@@ -5,6 +5,8 @@
 
 ✨ This project was sponsored by [**PCBWay**](#a-huge-thank-you-to-pcbway) ✨
 
+**Are you looking for the PROTO-MIDDS repo?** [Here you have it!](https://github.com/dabecart/PROTO-MIDDS)
+
 ## Overview
 
 The **MIDDS** is a peripheral board designed to connect to a computer via USB, enhancing your software with timestamped GPIO capabilities. More than just a reliable General-Purpose Input/Output device, it delivers precise and high-accuracy timestamping. Featuring 14 configurable channels, the MIDDS supports +3.3V TTL or LVDS input and output modes. These channels enable timestamping for both inputs and outputs, with each channel capable of being selected as the SYNC input. This SYNC input can accept a rectangular signal from an external clock source to synchronize the MIDDS's time with the external clock. MIDDS also has 16 additional GPIOs (only for +3.3V TTL).
