@@ -25,6 +25,8 @@ It can therefore be used in the following applications:
 - GNSS.
 - Test and measurement.
 
+**Are you looking for the PROTO-MIDDS repo?** [Here you have it!](https://github.com/dabecart/PROTO-MIDDS)
+
 ## How MIDDS works?
 Read more about it [here](/docs/README.md)! 💫
 
