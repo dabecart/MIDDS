@@ -33,14 +33,14 @@ typedef enum ChannelType {
 } ChannelType;
 
 typedef struct TimerChannel_ShiftReg {
-    uint8_t rsv;
-    uint8_t v1;
-    uint8_t v2;
-    uint8_t statusRed;      // Red LED from the STATUS.
-    uint8_t statusGreen;    // Green LED from the STATUS.
-    uint8_t de;
-    uint8_t re;
-    uint8_t isOut;          // 1: output, 0: input
+    uint8_t rsv         : 1;
+    uint8_t v1          : 1;
+    uint8_t v2          : 1;
+    uint8_t statusRed   : 1;    // Red LED from the STATUS.
+    uint8_t statusGreen : 1;    // Green LED from the STATUS.
+    uint8_t de          : 1;
+    uint8_t re          : 1;
+    uint8_t isOut       : 1;    // 1: output, 0: input
 } __attribute__((__packed__)) TimerChannel_ShiftReg;
 
 // Channel related to a TIMx.

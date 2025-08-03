@@ -45,7 +45,7 @@ void receiveData() {
                 peekN_cb(&inputBuffer, inputLength, inMsgBuffer);
             }
             
-            int32_t decodeReturn = decodeGPIOMessage(inMsgBuffer, inputBuffer.len);
+            int32_t decodeReturn = decodeGPIOMessage(inMsgBuffer, inputLength);
             if(decodeReturn == COMMS_DECODE_NOT_ENOUGH_DATA) {
                 // Do not discard any data. Exit the function and come back later.
                 return;
@@ -328,7 +328,7 @@ uint8_t decodeSettingsChannel(const uint8_t* dataBuffer, ChannelSettingsChannel 
         // frequency at the moment.
         sendErrorMessage(COMMS_ERROR_INTERNAL);
         return 0;
-}else if(strncmp(modeIdentifier, COMMS_SETT_CH_MONITOR_RISING, strlen(COMMS_SETT_CH_MONITOR_RISING)) == 0) {
+    }else if(strncmp(modeIdentifier, COMMS_SETT_CH_MONITOR_RISING, strlen(COMMS_SETT_CH_MONITOR_RISING)) == 0) {
         decodedMsg->mode = CHANNEL_MONITOR_RISING_EDGES;
     }else if(strncmp(modeIdentifier, COMMS_SETT_CH_MONITOR_FALLING, strlen(COMMS_SETT_CH_MONITOR_FALLING)) == 0) {
         decodedMsg->mode = CHANNEL_MONITOR_FALLING_EDGES;
@@ -341,7 +341,9 @@ uint8_t decodeSettingsChannel(const uint8_t* dataBuffer, ChannelSettingsChannel 
         return 0;
     }
 
-    if(dataBuffer[7] == (uint8_t) CHANNEL_PROTOC_5V) {
+    if(decodedMsg->mode == CHANNEL_DISABLED) {
+        decodedMsg->protocol = CHANNEL_PROTOC_OFF;
+    }else if(dataBuffer[7] == (uint8_t) CHANNEL_PROTOC_5V) {
         decodedMsg->protocol = CHANNEL_PROTOC_5V;
     }else if(dataBuffer[7] == (uint8_t) CHANNEL_PROTOC_3V3) {
         decodedMsg->protocol = CHANNEL_PROTOC_3V3;

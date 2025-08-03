@@ -189,6 +189,8 @@ void applyGPIOChannelConfig_(Channel* ch) {
         GPIOExpander* exp = getGPIOExpanderFromGPIOChannel_(ch);
         if(exp == NULL) return;
 
+        // Initiate as low.
+        setStateGPIOExpander(exp, ch->data.gpio.pinNumber, GPIOEx_LOW);
         setDirectionGPIOExpander(exp, ch->data.gpio.pinNumber, GPIOEx_Output);
     }
 }
@@ -196,29 +198,35 @@ void applyGPIOChannelConfig_(Channel* ch) {
 void setShiftRegisterValues(ChannelController* channelController) {
     // Sends the values stored on the configuration of the channels to the Shift Registers that 
     // control the direction of the GPIOs. There's one shift register per channel.
-    TimerChannel_ShiftReg srDataOut[CH_CONT_TIMER_COUNT] = {0};
+    TimerChannel_ShiftReg srDataOutBuf[CH_CONT_TIMER_COUNT] = {0};
+    TimerChannel_ShiftReg* stDataOut;
     Channel* ch;
     for(int16_t i = CH_CONT_TIMER_COUNT-1; i >= 0; i--) {
         ch = &channelController->channels[i];
+        stDataOut = &srDataOutBuf[CH_CONT_TIMER_COUNT-1-i];
         
         // Voltage signals.
-        srDataOut->v1 = (ch->protocol == CHANNEL_PROTOC_5V) || (ch->protocol == CHANNEL_PROTOC_1V8) || 
+        stDataOut->v1 = (ch->protocol == CHANNEL_PROTOC_5V) || (ch->protocol == CHANNEL_PROTOC_1V8) || 
                         (ch->protocol == CHANNEL_PROTOC_LVDS);
-        srDataOut->v2 = (ch->protocol == CHANNEL_PROTOC_3V3) || (ch->protocol == CHANNEL_PROTOC_1V8);
+        stDataOut->v2 = (ch->protocol == CHANNEL_PROTOC_3V3) || (ch->protocol == CHANNEL_PROTOC_1V8);
+
+        // Status LEDs.
+        stDataOut->statusGreen = (ch->mode != CHANNEL_DISABLED);
+        stDataOut->statusRed = (ch->mode == CHANNEL_DISABLED);
 
         // RE/DE signals.
-        srDataOut->re = 
+        stDataOut->re = 
             ((ch->protocol != CHANNEL_PROTOC_LVDS) && (ch->mode != CHANNEL_DISABLED)) || 
             ((ch->protocol == CHANNEL_PROTOC_LVDS) && (ch->mode == CHANNEL_OUTPUT));
 
-        srDataOut->de = (ch->protocol == CHANNEL_PROTOC_LVDS);
+        stDataOut->de = (ch->protocol == CHANNEL_PROTOC_LVDS);
 
         // To set the DIR pin.
-        srDataOut->isOut = (ch->mode == CHANNEL_OUTPUT);
+        stDataOut->isOut = (ch->mode == CHANNEL_OUTPUT);
     }
 
     HAL_SPI_Transmit(
-        channelController->hspi, (uint8_t*) (&srDataOut), sizeof(srDataOut), 1000);
+        channelController->hspi, (uint8_t*) (&srDataOutBuf), sizeof(srDataOutBuf), 1000);
 
     // Make the SR output its inner content by toggling the ENABLE pin. 
     HAL_GPIO_WritePin(SHIFT_REG_ENABLE_GPIO_Port, SHIFT_REG_ENABLE_Pin, GPIO_PIN_RESET);
@@ -257,7 +265,7 @@ uint8_t setChannelState(Channel* ch, uint8_t newState) {
         TimerChannel* timerCh = &ch->data.timer;
         HAL_GPIO_WritePin(timerCh->timerHandler->gpioPort, 
                           timerCh->timerHandler->gpioPin, 
-                          newState ? GPIO_PIN_RESET : GPIO_PIN_RESET);
+                          newState ? GPIO_PIN_SET : GPIO_PIN_RESET);
     }else if(ch->type == CHANNEL_GPIO) {
         return setStateGPIOExpander(getGPIOExpanderFromGPIOChannel_(ch),
                                     ch->data.gpio.pinNumber,

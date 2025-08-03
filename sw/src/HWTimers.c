@@ -145,13 +145,15 @@ void startHWTimers(HWTimers* htimers) {
 
     // Start base timers.
     HAL_TIM_Base_Start_IT(hwTimers.htim1);
-    // Enable only the Update ISR of the master timer, in the prototype version, that's TIM1.
+    // Enable only the Update ISR of the master timer, that's TIM1.
     HAL_TIM_Base_Start_IT(hwTimers.htim2);
     __HAL_TIM_DISABLE_IT(hwTimers.htim2, TIM_IT_UPDATE);
     HAL_TIM_Base_Start_IT(hwTimers.htim3);
     __HAL_TIM_DISABLE_IT(hwTimers.htim3, TIM_IT_UPDATE);
     HAL_TIM_Base_Start_IT(hwTimers.htim4);
     __HAL_TIM_DISABLE_IT(hwTimers.htim4, TIM_IT_UPDATE);
+    HAL_TIM_Base_Start_IT(hwTimers.htim5);
+    __HAL_TIM_DISABLE_IT(hwTimers.htim5, TIM_IT_UPDATE);
 
     // First, start all timers and disable their interrupts.
     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
@@ -357,6 +359,7 @@ inline void saveTimestamp_(HWTimerChannel* channel, uint8_t addCoarseIncrement) 
 }
 
 void captureInputISR_(TIM_HandleTypeDef* htim) {
+    __HAL_TIM_CLEAR_FLAG(htim, TIM_FLAG_UPDATE);
     for(uint16_t i = 0; i < HW_TIMER_CHANNEL_COUNT; i++) {
         if(htim->Instance != hwTimers.channels[i].htim->Instance) continue;
 
