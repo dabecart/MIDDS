@@ -3,9 +3,9 @@
 
 ## Overview
 
-The **MIDDS** is a peripheral board designed to connect to a computer via USB, enhancing your software with timestamped GPIO capabilities. More than just a reliable General-Purpose Input/Output device, it delivers precise and high-accuracy timestamping. Featuring 14 configurable channels, the MIDDS supports +3.3V TTL or LVDS input and output modes. These channels enable timestamping for both inputs and outputs, with each channel capable of being selected as the SYNC input. This SYNC input can accept a rectangular signal from an external clock source to synchronize the MIDDS's time with the external clock. MIDDS also has 16 additional GPIOs (only for +3.3V TTL).
+The **MIDDS** is a peripheral board designed to connect to a computer via USB, enhancing your software with timestamped GPIO capabilities. More than just a reliable General-Purpose Input/Output device, it delivers precise and high-accuracy timestamping. Featuring 14 configurable channels, the MIDDS supports +5V, +3V3, +1V8 single-ended or LVDS input and output modes. These channels enable timestamping for both inputs and outputs, with each channel capable of being selected as the SYNC input. This SYNC input can accept a rectangular signal from an external clock source to synchronize the MIDDS's time with the external clock. MIDDS also has 16 additional GPIOs (only +5V, +3V3 and +1V8, not LVDS).
 
-For even greater precision, the MIDDS supports an external clock signal as HCLK, which can be connected through an onboard SMA connector. The board also includes a TFT LCD screen for convenient display of the monitor's current state. Additionally, the MIDDS offers 16 extra GPIOs, configurable as digital or analog inputs/outputs. All external connections are ESD-protected.
+For even greater precision, the MIDDS supports an external clock signal as HCLK, which can be connected through an onboard SMA connector. The board also includes a TFT LCD screen for convenient display of the monitor's current state. All external connections are ESD-protected.
 
 The MIDDS solves two problems on the same device:
 
@@ -25,13 +25,13 @@ It can therefore be used in the following applications:
 
 - **General Purpose Timers (TIMx):** they give accurate measures up to the frequency of the MCU. Currently set at 160 MHz, MIDDS gives a time precision of 6.25 nanoseconds.  
 - **IO:** in MIDDS there are two types of input/outputs:
-  - **Timing channels [Ch00 to Ch13]**. They offer high timing precision and can be configured as +3.3V or LVDS inputs/outputs.
-  - **General IO [Ch14 to Ch30]**. They are general purpose input and output pins.
+  - **Timing channels [Ch00 to Ch15]**. They offer high timing precision and can be configured as +5V, +3V3, +1V8 or LVDS inputs/outputs.
+  - **General IO [Ch16 to Ch31]**. They are general purpose input and output pins.
 - **USB**: MIDDS can be powered through an USB-C cable. It uses CDC (Communications Devices Class) to communicate with the computer and it will appear as a virtual serial port device. Tested with up to 10 MBauds.
 - **SWD**: makes MIDDS easily debuggable and open to tinker with!
 - **External power source:** MIDDS counts with two independent +3.3V power sources to connect other devices to the board.
-- **External clock:** use the SMA connector X2 to input an external clock signal of your convenience.
-- **TFT display:** to easily see the state of your MIDDS board.
+- **External clock:** use the SMA connector (Ext 10MHz) to input an external clock signal of your convenience. Select the clock source by shortcircuiting the SCK pins, in either the Int (Internal clock) or Ext (External clock) position. 
+- **LED indicators:** to easily see the configuration and state of all individual channels.
 
 With all these features, below are listed the expected measuring characteristics of the MIDDS:
 
@@ -162,10 +162,9 @@ Sets the configuration of a channel of the MIDDS.
     - **Output**. The channel outputs a given value in the specified time mark or as quick as possible.
     - **Monitoring**. It is an special kind of input. When a change in the voltage of the channel occurs, MIDDS sends a message to the computer with the current value of the channel and its timestamp.
     - **Disabled**. The channel enters a high impedance state. No message is accepted or generated for this channel.
-  - Set the **signal** type of the channel:
-    - **TTL**.
+  - Set the **signal** type or *protocol* of the channel:
+    - **Single-ended**. +5V, +3V3 or +1V8.
     - **LVDS**.
-  - Specifies the SYNC channel, replacing the previous one. The SYNC channel can only be set as either *Input* or *Monitor* (on either one of the three available edges). If set as *Input*, the user may sporadically read the current value of the SYNC signal. If set as *Monitor*, the user will automatically get those reading on the corresponding edge it has set to monitor.
 - Command format. 8 bytes long.
   
 | Field                 | Value                                                      | Type   | Byte size | Byte Offset |
@@ -175,7 +174,7 @@ Sets the configuration of a channel of the MIDDS.
 | Subcommand descriptor | `C`                                                        | `char` | 1         | 2           |
 | Channel Number        | `00` to `99`                                               | `char` | 2         | 3           |
 | Channel Mode          | `IN`: Input<br>`OU`: Output<br>`MR`: Monitor Rising edges<br>`MF`: Monitor falling edges<br>`MB`: Monitor both edges<br>`DS`: Disabled | `char` | 2         | 5           |
-| Signal type           | `T`: TTL<br>`L`: LVDS                                      | `char` | 1         | 7           |
+| Signal type           | `5`: 5V<br>`3`: 3V3<br>`1`: 1V8<br>`L`: LVDS               | `char` | 1         | 7           |
 
 #### SYNC Settings (`SY`)
 
